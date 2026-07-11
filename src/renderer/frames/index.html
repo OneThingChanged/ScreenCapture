@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>프레임 추출</title>
+    <style>
+      :root { font-family: 'Segoe UI', system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; }
+      body {
+        display: flex; flex-direction: column; height: 100vh;
+        background: #2b2f3a; color: #e8eaf0; overflow: hidden;
+        user-select: none; -webkit-user-select: none;
+      }
+
+      /* 상단 툴바 */
+      #toolbar {
+        display: flex; align-items: center; gap: 12px; padding: 8px 12px;
+        background: #20242e; border-bottom: 1px solid #3a4156; flex: 0 0 auto;
+      }
+      #toolbar button {
+        border: 0; border-radius: 6px; padding: 7px 12px; cursor: pointer;
+        font-size: 12px; font-weight: 700; color: #fff; background: #2563eb;
+      }
+      #toolbar button:hover { filter: brightness(1.1); }
+      #toolbar button.ghost { background: #3a4156; }
+      #toolbar button:disabled { opacity: .4; cursor: default; }
+      #info { margin-left: auto; font-size: 12px; color: #aeb4c6; display: flex; gap: 16px; }
+      #info b { color: #e8eaf0; font-variant-numeric: tabular-nums; }
+
+      /* 본문: 좌측 리스트 + 우측 프리뷰 */
+      #body { flex: 1; display: flex; min-height: 0; }
+      #list {
+        flex: 0 0 220px; overflow-y: auto; background: #242936;
+        border-right: 1px solid #3a4156;
+      }
+      .row {
+        display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+        font-size: 12px; cursor: pointer; border-bottom: 1px solid #2c3140;
+        font-variant-numeric: tabular-nums;
+      }
+      .row:hover { background: #2c3142; }
+      .row.sel { background: #2f4a86; }
+      .row.cur { box-shadow: inset 2px 0 0 #3aa0ff; }
+      .row.cur .num, .row.cur .t { color: #fff; }
+      .row input { margin: 0; cursor: pointer; }
+      .row .num { width: 42px; color: #aeb4c6; }
+      .row .t { color: #8b91a3; }
+      .row.sel .num, .row.sel .t { color: #fff; }
+
+      /* 헤더 행 */
+      #listHead {
+        display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+        font-size: 11px; color: #6b7185; text-transform: uppercase; letter-spacing: .05em;
+        background: #20242e; position: sticky; top: 0; border-bottom: 1px solid #3a4156;
+      }
+      #listHead .num { width: 42px; }
+
+      #preview {
+        flex: 1; display: flex; align-items: center; justify-content: center;
+        background: #16181f; min-width: 0; position: relative; overflow: hidden;
+      }
+      #preview img { max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: auto; }
+      #empty { color: #6b7185; font-size: 14px; text-align: center; padding: 20px; }
+      #busy {
+        position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+        background: rgba(22,24,31,.8); color: #e8eaf0; font-size: 14px; font-weight: 600; z-index: 10;
+      }
+      #busy.on { display: flex; }
+
+      /* 하단 저장 바 */
+      #footer {
+        display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+        background: #20242e; border-top: 1px solid #3a4156; flex: 0 0 auto;
+      }
+      #footer .sub { font-size: 12px; color: #8b91a3; }
+      #footer .hint2 { font-size: 11px; color: #6b7185; }
+      #footer .spacer { flex: 1; }
+      #footer .fps { font-size: 12px; color: #aeb4c6; display: flex; align-items: center; gap: 6px; }
+      #footer .fps input {
+        width: 56px; padding: 6px 8px; border: 1px solid #3a4156; border-radius: 6px;
+        background: #2b2f3a; color: #e8eaf0; font-size: 12px;
+      }
+      #footer button {
+        border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer;
+        font-size: 12px; font-weight: 700; color: #fff; background: #16a34a;
+      }
+      #footer button.ghost { background: #3a4156; }
+      #footer button:hover { filter: brightness(1.1); }
+      #footer button:disabled { opacity: .4; cursor: default; }
+    </style>
+  </head>
+  <body>
+    <div id="toolbar">
+      <button class="ghost" id="home">← 홈</button>
+      <button id="openBtn">📂 영상 열기</button>
+      <span id="info">
+        <span>영상 크기 <b id="infoSize">—</b></span>
+        <span>프레임 수 <b id="infoCount">—</b></span>
+        <span>재생 시간 <b id="infoDur">—</b></span>
+      </span>
+    </div>
+
+    <div id="body">
+      <div id="list">
+        <div id="listHead"><span class="num">번호</span><span>프레임 시간</span></div>
+        <div id="rows"></div>
+      </div>
+      <div id="preview">
+        <div id="empty">영상을 열면 프레임이 여기에 표시됩니다.</div>
+        <img id="previewImg" style="display:none;" />
+        <div id="busy">프레임 추출 중…</div>
+      </div>
+    </div>
+
+    <div id="footer">
+      <span class="sub" id="selInfo">선택된 프레임 없음</span>
+      <span class="hint2">Shift+클릭 범위선택 · Delete 프레임 삭제</span>
+      <span class="spacer"></span>
+      <button class="ghost" id="checkAll">전체 선택</button>
+      <label class="fps">FPS <input type="number" id="fps" min="1" max="60" value="30" /></label>
+      <button class="ghost" id="exportGif" disabled>GIF로 저장</button>
+      <button id="exportMp4" disabled>MP4로 저장</button>
+    </div>
+
+    <script type="module" src="./frames.ts"></script>
+  </body>
+</html>

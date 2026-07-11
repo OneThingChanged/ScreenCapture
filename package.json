@@ -1,0 +1,34 @@
+{
+  "name": "screen-capture",
+  "version": "0.1.0",
+  "description": "화면 캡쳐 프로그램 (영역/창/전체 캡쳐, 단축키, 주석 편집, 녹화)",
+  "main": "out/main/index.js",
+  "author": "jintae",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "start": "electron-vite preview",
+    "typecheck:node": "tsc --noEmit --composite false -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit --composite false -p tsconfig.web.json",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "pack": "electron-vite build && node scripts/package.mjs",
+    "pack:installer": "electron-vite build && electron-builder --win",
+    "icon": "node resources/generate-icon.mjs && node resources/png-to-ico.mjs"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.0.0",
+    "@types/node": "^22.9.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0",
+    "fabric": "^6.9.1",
+    "ffmpeg-static": "^5.3.0"
+  }
+}

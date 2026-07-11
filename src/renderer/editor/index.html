@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>편집기</title>
+    <style>
+      :root { font-family: 'Segoe UI', system-ui, sans-serif; }
+      html, body {
+        margin: 0; height: 100%; background: #1f2330; color: #e5e7eb;
+        display: flex; flex-direction: column; overflow: hidden; user-select: none;
+      }
+      #toolbar {
+        display: flex; align-items: center; gap: 6px; padding: 8px 12px;
+        background: #161922; border-bottom: 1px solid #2a2f3c; flex-wrap: wrap;
+      }
+      .tool, .action {
+        width: 38px; height: 34px; border: 1px solid #2a2f3c; background: #232838;
+        color: #e5e7eb; border-radius: 7px; cursor: pointer; font-size: 15px;
+        display: inline-flex; align-items: center; justify-content: center;
+      }
+      .tool:hover, .action:hover { background: #2d3346; }
+      .tool.active { background: #2563eb; border-color: #2563eb; }
+      .sep { width: 1px; height: 24px; background: #2a2f3c; margin: 0 4px; }
+      .action { width: auto; padding: 0 12px; font-size: 13px; font-weight: 600; gap: 6px; }
+      .action.primary { background: #2563eb; border-color: #2563eb; }
+      label.ctl { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #c4c9d4; }
+      input[type="color"] { width: 30px; height: 28px; border: 0; background: none; padding: 0; cursor: pointer; }
+      input[type="range"] { width: 90px; }
+      .spacer { flex: 1; }
+      #stage { flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 16px; }
+      #wrap { box-shadow: 0 6px 24px rgba(0,0,0,.5); line-height: 0; }
+      #status { font-size: 12px; color: #34d399; min-width: 90px; }
+    </style>
+  </head>
+  <body>
+    <div id="toolbar">
+      <button class="action" id="home" title="대시보드로 돌아가기">← 홈</button>
+      <div class="sep"></div>
+      <button class="tool active" data-tool="select" title="선택/이동">⤧</button>
+      <button class="tool" data-tool="pen" title="펜">✏️</button>
+      <button class="tool" data-tool="arrow" title="화살표">↗</button>
+      <button class="tool" data-tool="rect" title="사각형">▭</button>
+      <button class="tool" data-tool="ellipse" title="원">◯</button>
+      <button class="tool" data-tool="text" title="텍스트">T</button>
+      <button class="tool" data-tool="mosaic" title="모자이크">▦</button>
+      <div class="sep"></div>
+      <label class="ctl">색<input type="color" id="color" value="#ff3b30" /></label>
+      <label class="ctl">굵기<input type="range" id="width" min="1" max="40" value="4" /></label>
+      <div class="sep"></div>
+      <button class="action" id="undo" title="실행 취소">↶ 취소</button>
+      <button class="action" id="clear" title="모두 지우기">전체 삭제</button>
+      <div class="spacer"></div>
+      <span id="status"></span>
+      <button class="action" id="copy">클립보드 복사</button>
+      <button class="action primary" id="save">저장</button>
+    </div>
+    <div id="stage">
+      <div id="wrap"><canvas id="c"></canvas></div>
+    </div>
+    <script type="module" src="./editor.ts"></script>
+  </body>
+</html>

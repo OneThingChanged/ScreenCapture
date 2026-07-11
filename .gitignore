@@ -1,0 +1,8 @@
+node_modules/
+out/
+dist/
+dist-packager/
+.claude/
+.codex/
+*.log
+.DS_Store

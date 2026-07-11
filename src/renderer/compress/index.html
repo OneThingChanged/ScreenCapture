@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>영상 압축</title>
+    <style>
+      :root { font-family: 'Segoe UI', system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; padding: 22px; color: #e8eaf0;
+        background: linear-gradient(160deg, #232838 0%, #1a1d28 100%);
+        user-select: none; -webkit-user-select: none;
+      }
+      h1 { font-size: 18px; margin: 0 0 16px; }
+      .page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .section-label {
+        font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+        color: #6b7185; margin: 16px 0 8px; font-weight: 700;
+      }
+      .file-row {
+        display: flex; gap: 8px; align-items: center;
+      }
+      .file-row button {
+        flex: 0 0 auto; border: 0; border-radius: 6px; padding: 9px 14px; cursor: pointer;
+        background: #2563eb; color: #fff; font-size: 13px; font-weight: 700;
+      }
+      .file-row .name {
+        flex: 1; min-width: 0; font-size: 12px; color: #aeb4c6;
+        background: #2c3142; border: 1px solid #3a4156; border-radius: 6px;
+        padding: 9px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .meta {
+        margin-top: 8px; font-size: 12px; color: #8b91a3; display: flex; gap: 16px; flex-wrap: wrap;
+      }
+      .meta b { color: #e8eaf0; }
+      select {
+        width: 100%; padding: 9px 10px; border: 1px solid #3a4156; border-radius: 6px;
+        background: #2c3142; color: #e8eaf0; font-size: 13px;
+      }
+      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      button.primary {
+        width: 100%; margin-top: 22px; border: 0; border-radius: 8px; padding: 13px; cursor: pointer;
+        background: linear-gradient(135deg, #16a34a, #128a3f); color: #fff;
+        font-size: 14px; font-weight: 700;
+      }
+      button.primary:hover { filter: brightness(1.08); }
+      button.primary:disabled { opacity: .4; cursor: default; filter: none; }
+      #result {
+        margin-top: 18px; padding: 14px; border-radius: 8px; background: #2c3142;
+        border: 1px solid #3a4156; font-size: 13px; display: none;
+      }
+      #result.on { display: block; }
+      #result .big { font-size: 18px; font-weight: 800; color: #4ade80; }
+      #result .sizes { color: #aeb4c6; margin-top: 4px; }
+      #status { margin-top: 10px; font-size: 12px; color: #8b91a3; min-height: 16px; }
+      .hint { font-size: 11px; color: #6b7185; margin-top: 4px; }
+    </style>
+  </head>
+  <body>
+    <div class="page-head">
+      <h1>🗜 영상 압축</h1>
+      <button id="home">← 홈</button>
+    </div>
+
+    <p class="section-label">대상 영상</p>
+    <div class="file-row">
+      <button id="pick">📂 영상 선택</button>
+      <span class="name" id="fileName">선택된 파일 없음</span>
+    </div>
+    <div class="meta" id="meta" style="display:none;">
+      <span>크기 <b id="mSize">—</b></span>
+      <span>해상도 <b id="mDim">—</b></span>
+      <span>길이 <b id="mDur">—</b></span>
+    </div>
+
+    <p class="section-label">압축 옵션</p>
+    <div class="grid2">
+      <div>
+        <label class="hint">화질 (낮을수록 용량↓)</label>
+        <select id="quality">
+          <option value="20">고화질 (CRF 20)</option>
+          <option value="26" selected>표준 (CRF 26)</option>
+          <option value="30">저용량 (CRF 30)</option>
+          <option value="34">최소용량 (CRF 34)</option>
+        </select>
+      </div>
+      <div>
+        <label class="hint">해상도</label>
+        <select id="scale">
+          <option value="0" selected>원본 유지</option>
+          <option value="1080">1080p</option>
+          <option value="720">720p</option>
+          <option value="480">480p</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:10px;">
+      <label class="hint">인코딩 속도 (느릴수록 압축률↑)</label>
+      <select id="preset">
+        <option value="veryfast">빠름 (veryfast)</option>
+        <option value="medium" selected>보통 (medium)</option>
+        <option value="slow">느림/고압축 (slow)</option>
+      </select>
+    </div>
+
+    <button class="primary" id="run" disabled>압축 시작</button>
+    <div id="status"></div>
+
+    <div id="result">
+      <div class="big" id="rPct"></div>
+      <div class="sizes" id="rSizes"></div>
+    </div>
+
+    <script type="module" src="./compress.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+appId: com.jintae.screencapture
+productName: ScreenCapture
+directories:
+  output: dist
+  buildResources: resources
+files:
+  - out/**/*
+  - resources/icon.png
+asarUnpack:
+  - "**/node_modules/ffmpeg-static/**"
+win:
+  target:
+    - target: nsis
+    - target: portable
+  icon: resources/icon.png
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: ScreenCapture

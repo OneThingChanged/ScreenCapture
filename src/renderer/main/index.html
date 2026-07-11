@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>화면 캡쳐</title>
+    <style>
+      :root { font-family: 'Segoe UI', system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; padding: 24px; color: #e8eaf0;
+        background: linear-gradient(160deg, #232838 0%, #1a1d28 100%);
+        user-select: none; -webkit-user-select: none;
+      }
+      header { text-align: center; margin-bottom: 22px; }
+      header h1 { font-size: 20px; margin: 0 0 4px; font-weight: 700; letter-spacing: -.01em; }
+      header p { font-size: 12px; margin: 0; color: #8b91a3; }
+
+      .section-label {
+        font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+        color: #6b7185; margin: 0 0 10px; font-weight: 700;
+      }
+
+      .grid {
+        display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px;
+      }
+      .card {
+        background: #2c3142; border: 1px solid #3a4156; border-radius: 12px;
+        padding: 16px 8px; cursor: pointer; text-align: center;
+        transition: background .12s, transform .08s, border-color .12s;
+      }
+      .card:hover { background: #353c50; border-color: #4d566e; }
+      .card:active { transform: scale(.96); }
+      .card .icon { font-size: 26px; line-height: 1; display: block; margin-bottom: 8px; }
+      .card .name { font-size: 12px; font-weight: 600; }
+      .card .key { font-size: 10px; color: #757c91; margin-top: 4px; }
+      .card.rec .icon { color: #e0455a; }
+      .card.rec:hover { border-color: #e0455a; }
+
+      .record-btn {
+        width: 100%; padding: 16px; border: 0; border-radius: 12px; cursor: pointer;
+        font-size: 15px; font-weight: 700; color: #fff;
+        background: linear-gradient(135deg, #e0455a, #c0334a);
+        display: flex; align-items: center; justify-content: center; gap: 10px;
+        transition: filter .12s, transform .08s;
+      }
+      .record-btn:hover { filter: brightness(1.08); }
+      .record-btn:active { transform: scale(.98); }
+      .record-btn.recording {
+        background: linear-gradient(135deg, #3a4156, #2c3142);
+        box-shadow: inset 0 0 0 1px #e0455a;
+      }
+      .dot {
+        width: 11px; height: 11px; border-radius: 50%; background: #fff; display: inline-block;
+      }
+      .record-btn.recording .dot { background: #e0455a; animation: blink 1s steps(2,start) infinite; }
+      @keyframes blink { 50% { opacity: .2; } }
+
+      .footer {
+        margin-top: 22px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
+      }
+      .footer .ghost { padding: 8px 12px; }
+      .ghost {
+        background: transparent; border: 1px solid #3a4156; color: #aeb4c6;
+        padding: 8px 16px; border-radius: 8px; font-size: 12px; cursor: pointer; font-weight: 600;
+      }
+      .ghost:hover { background: #2c3142; color: #e8eaf0; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>화면 캡쳐</h1>
+      <p>캡쳐할 방식을 선택하세요</p>
+    </header>
+
+    <p class="section-label">이미지 캡쳐</p>
+    <div class="grid">
+      <div class="card" data-action="region">
+        <span class="icon">⛶</span>
+        <div class="name">영역</div>
+        <div class="key">Ctrl+Shift+1</div>
+      </div>
+      <div class="card" data-action="window">
+        <span class="icon">🗔</span>
+        <div class="name">창</div>
+        <div class="key">Ctrl+Shift+2</div>
+      </div>
+      <div class="card" data-action="fullscreen">
+        <span class="icon">🖥</span>
+        <div class="name">전체 화면</div>
+        <div class="key">Ctrl+Shift+3</div>
+      </div>
+    </div>
+
+    <p class="section-label">동영상 녹화</p>
+    <div class="grid" id="recordGrid">
+      <div class="card rec" data-action="record-region">
+        <span class="icon">⛶</span>
+        <div class="name">영역</div>
+      </div>
+      <div class="card rec" data-action="record-window">
+        <span class="icon">🗔</span>
+        <div class="name">창</div>
+      </div>
+      <div class="card rec" data-action="record-fullscreen">
+        <span class="icon">🖥</span>
+        <div class="name">전체 화면</div>
+      </div>
+    </div>
+
+    <!-- 녹화 중일 때만 표시되는 정지 바 -->
+    <button class="record-btn recording" id="stopBar" style="display:none;">
+      <span class="dot"></span>
+      <span>녹화 중 · 클릭하여 정지</span>
+    </button>
+
+    <div class="footer">
+      <button class="ghost" data-action="frames">🎞 프레임 편집</button>
+      <button class="ghost" data-action="compress">🗜 영상 압축</button>
+      <button class="ghost" data-action="settings">⚙ 설정</button>
+    </div>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
