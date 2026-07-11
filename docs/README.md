@@ -14,6 +14,7 @@ This directory contains the maintained documentation for ScreenCapture.
 
 ## Release notes
 
+- [v0.1.4](releases/v0.1.4.md)
 - [v0.1.3](releases/v0.1.3.md)
 - [v0.1.2](releases/v0.1.2.md)
 - [v0.1.1](releases/v0.1.1.md)

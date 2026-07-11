@@ -39,10 +39,41 @@ export function FabricEditor({ dataUrl, fileName, onOpen }: { dataUrl: string | 
   const toolRef = useRef<Tool>('select')
   const colorRef = useRef('#ff4d5f')
   const widthRef = useRef(4)
+  const historyRef = useRef<string[]>([])
+  const restoringHistoryRef = useRef(false)
   const [tool, setToolState] = useState<Tool>('select')
   const [color, setColor] = useState('#ff4d5f')
   const [width, setWidth] = useState(4)
   const [status, setStatus] = useState('')
+
+  const recordHistory = (canvas: FabricCanvas): void => {
+    if (restoringHistoryRef.current) return
+    const snapshot = JSON.stringify(canvas.toJSON())
+    const history = historyRef.current
+    if (history[history.length - 1] === snapshot) return
+    history.push(snapshot)
+    if (history.length > 50) history.shift()
+  }
+
+  const undo = async (): Promise<void> => {
+    const canvas = canvasRef.current
+    const history = historyRef.current
+    if (!canvas || restoringHistoryRef.current || history.length < 2) return
+    history.pop()
+    const previous = history[history.length - 1]
+    restoringHistoryRef.current = true
+    try {
+      canvas.discardActiveObject()
+      await canvas.loadFromJSON(previous)
+      canvas.forEachObject((object) => {
+        object.selectable = true
+        object.evented = true
+      })
+      canvas.requestRenderAll()
+    } finally {
+      restoringHistoryRef.current = false
+    }
+  }
 
   const setTool = (next: Tool): void => {
     toolRef.current = next
@@ -57,9 +88,10 @@ export function FabricEditor({ dataUrl, fileName, onOpen }: { dataUrl: string | 
       canvas.freeDrawingBrush = brush
     }
     canvas.selection = next === 'select'
+    if (next !== 'select') canvas.discardActiveObject()
     canvas.forEachObject((object) => {
-      object.selectable = next === 'select'
-      object.evented = next === 'select'
+      object.selectable = true
+      object.evented = true
     })
     canvas.requestRenderAll()
   }
@@ -72,6 +104,7 @@ export function FabricEditor({ dataUrl, fileName, onOpen }: { dataUrl: string | 
       if ('stroke' in active) active.set('stroke', color)
       if (active instanceof IText) active.set('fill', color)
       canvasRef.current?.requestRenderAll()
+      if (canvasRef.current) recordHistory(canvasRef.current)
     }
   }, [color])
 
@@ -82,13 +115,26 @@ export function FabricEditor({ dataUrl, fileName, onOpen }: { dataUrl: string | 
 
   useEffect(() => {
     if (!canvasNode.current) return
-    const canvas = new FabricCanvas(canvasNode.current, { selection: true, preserveObjectStacking: true, backgroundColor: '#090b0f' })
+    const canvas = new FabricCanvas(canvasNode.current, {
+      selection: true,
+      preserveObjectStacking: true,
+      backgroundColor: 'transparent'
+    })
     canvasRef.current = canvas
     let drawing: FabricObject | null = null
     let origin = { x: 0, y: 0 }
     const point = (opt: TPointerEventInfo<TPointerEvent>): { x: number; y: number } => {
-      const p = canvas.getScenePoint(opt.e)
-      return { x: p.x, y: p.y }
+      const rect = canvas.upperCanvasEl.getBoundingClientRect()
+      const event = opt.e
+      const touch = 'changedTouches' in event ? event.changedTouches[0] : undefined
+      const clientX = touch?.clientX ?? (event as MouseEvent | PointerEvent).clientX
+      const clientY = touch?.clientY ?? (event as MouseEvent | PointerEvent).clientY
+      const scaleX = rect.width > 0 ? canvas.getWidth() / rect.width : 1
+      const scaleY = rect.height > 0 ? canvas.getHeight() / rect.height : 1
+      return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+      }
     }
     const makeArrow = (x1: number, y1: number, x2: number, y2: number): Group => {
       const line = new Line([x1, y1, x2, y2], { stroke: colorRef.current, strokeWidth: widthRef.current, strokeLineCap: 'round' })
@@ -99,10 +145,11 @@ export function FabricEditor({ dataUrl, fileName, onOpen }: { dataUrl: string | 
     const applyMosaic = (rect: Rect): void => {
       const source = baseImageRef.current
       if (!source) return
-      const left = rect.left ?? 0
-      const top = rect.top ?? 0
-      const w = rect.width ?? 0
-      const h = rect.height ?? 0
+      const bounds = rect.getBoundingRect()
+      const left = bounds.left
+      const top = bounds.top
+      const w = bounds.width
+      const h = bounds.height
       if (w < 4 || h < 4) return
       const displayScale = scaleRef.current
       const sx = left / displayScale
@@ -119,15 +166,19 @@ export function FabricEditor({ dataUrl, fileName, onOpen }: { dataUrl: string | 
       const context = large.getContext('2d')!
       context.imageSmoothingEnabled = false
       context.drawImage(small, 0, 0, small.width, small.height, 0, 0, large.width, large.height)
-      canvas.add(new FabricImage(large, { left, top, scaleX: displayScale, scaleY: displayScale, selectable: toolRef.current === 'select' }))
+      canvas.add(new FabricImage(large, { left, top, originX: 'left', originY: 'top', scaleX: displayScale, scaleY: displayScale, selectable: toolRef.current === 'select' }))
     }
     canvas.on('mouse:down', (opt) => {
       const current = toolRef.current
       if (current === 'select' || current === 'pen') return
+      if (opt.target) {
+        setTool('select')
+        return
+      }
       const p = point(opt)
       origin = p
       if (current === 'text') {
-        const text = new IText('텍스트', { left: p.x, top: p.y, fill: colorRef.current, fontSize: Math.max(16, widthRef.current * 5), fontFamily: 'Segoe UI' })
+        const text = new IText('텍스트', { left: p.x, top: p.y, originX: 'left', originY: 'top', fill: colorRef.current, fontSize: Math.max(16, widthRef.current * 5), fontFamily: 'Segoe UI' })
         canvas.add(text)
         canvas.setActiveObject(text)
         text.enterEditing()
@@ -135,10 +186,10 @@ export function FabricEditor({ dataUrl, fileName, onOpen }: { dataUrl: string | 
         setTool('select')
         return
       }
-      if (current === 'rect') drawing = new Rect({ left: p.x, top: p.y, width: 1, height: 1, fill: 'transparent', stroke: colorRef.current, strokeWidth: widthRef.current })
-      else if (current === 'ellipse') drawing = new Ellipse({ left: p.x, top: p.y, rx: 1, ry: 1, fill: 'transparent', stroke: colorRef.current, strokeWidth: widthRef.current })
+      if (current === 'rect') drawing = new Rect({ left: p.x, top: p.y, originX: 'left', originY: 'top', width: 1, height: 1, fill: 'transparent', stroke: colorRef.current, strokeWidth: widthRef.current })
+      else if (current === 'ellipse') drawing = new Ellipse({ left: p.x, top: p.y, originX: 'left', originY: 'top', rx: 1, ry: 1, fill: 'transparent', stroke: colorRef.current, strokeWidth: widthRef.current })
       else if (current === 'arrow') drawing = makeArrow(p.x, p.y, p.x + 1, p.y + 1)
-      else drawing = new Rect({ left: p.x, top: p.y, width: 1, height: 1, fill: 'rgba(48,137,255,.22)', stroke: '#3089ff', strokeWidth: 1 })
+      else drawing = new Rect({ left: p.x, top: p.y, originX: 'left', originY: 'top', width: 1, height: 1, fill: 'rgba(48,137,255,.22)', stroke: '#3089ff', strokeWidth: 1 })
       if (drawing) { drawing.selectable = false; canvas.add(drawing) }
     })
     canvas.on('mouse:move', (opt) => {
@@ -148,8 +199,9 @@ export function FabricEditor({ dataUrl, fileName, onOpen }: { dataUrl: string | 
       const top = Math.min(origin.y, p.y)
       const w = Math.abs(p.x - origin.x)
       const h = Math.abs(p.y - origin.y)
-      if (drawing instanceof Rect) drawing.set({ left, top, width: w, height: h })
-      else if (drawing instanceof Ellipse) drawing.set({ left, top, rx: w / 2, ry: h / 2 })
+      const strokeWidth = Number(drawing.strokeWidth) || 0
+      if (drawing instanceof Rect) drawing.set({ left, top, width: Math.max(0, w - strokeWidth), height: Math.max(0, h - strokeWidth) })
+      else if (drawing instanceof Ellipse) drawing.set({ left, top, rx: Math.max(0, w - strokeWidth) / 2, ry: Math.max(0, h - strokeWidth) / 2 })
       else if (drawing instanceof Group) { canvas.remove(drawing); drawing = makeArrow(origin.x, origin.y, p.x, p.y); drawing.selectable = false; canvas.add(drawing) }
       canvas.requestRenderAll()
     })
@@ -159,10 +211,26 @@ export function FabricEditor({ dataUrl, fileName, onOpen }: { dataUrl: string | 
       drawing = null
       if (toolRef.current === 'mosaic') { applyMosaic(object as Rect); canvas.remove(object) }
       else { object.selectable = true; object.setCoords() }
+      recordHistory(canvas)
       canvas.requestRenderAll()
     })
+    canvas.on('path:created', () => recordHistory(canvas))
+    canvas.on('text:editing:exited', () => recordHistory(canvas))
+    canvas.on('object:modified', () => recordHistory(canvas))
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'z') return
+      const target = event.target as HTMLElement | null
+      if (target?.matches('input, textarea, select, [contenteditable="true"]')) return
+      const active = canvas.getActiveObject()
+      if (active instanceof IText && active.isEditing) return
+      event.preventDefault()
+      void undo()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    const resizeObserver = new ResizeObserver(() => canvas.calcOffset())
+    if (stage.current) resizeObserver.observe(stage.current)
     setTool('select')
-    return () => { canvas.dispose(); canvasRef.current = null }
+    return () => { window.removeEventListener('keydown', onKeyDown); resizeObserver.disconnect(); canvas.dispose(); canvasRef.current = null }
   }, [])
 
   useEffect(() => {
@@ -176,22 +244,34 @@ export function FabricEditor({ dataUrl, fileName, onOpen }: { dataUrl: string | 
       const scale = Math.min(1, maxWidth / image.naturalWidth, maxHeight / image.naturalHeight)
       scaleRef.current = scale
       canvas.clear()
-      canvas.setDimensions({ width: Math.round(image.naturalWidth * scale), height: Math.round(image.naturalHeight * scale) })
-      void FabricImage.fromURL(dataUrl).then((background) => {
-        background.set({ scaleX: scale, scaleY: scale, selectable: false, evented: false })
-        canvas.backgroundImage = background
-        canvas.requestRenderAll()
-      })
+      const canvasWidth = Math.round(image.naturalWidth * scale)
+      const canvasHeight = Math.round(image.naturalHeight * scale)
+      canvas.setDimensions({ width: canvasWidth, height: canvasHeight })
+      canvas.calcOffset()
+      window.requestAnimationFrame(() => canvas.calcOffset())
+      canvas.backgroundImage = undefined
+      canvas.backgroundColor = 'transparent'
+      canvas.requestRenderAll()
+      historyRef.current = [JSON.stringify(canvas.toJSON())]
     }
     image.src = dataUrl
   }, [dataUrl])
 
   const exportImage = (): string | null => {
     const canvas = canvasRef.current
-    if (!canvas || !dataUrl) return null
+    const baseImage = baseImageRef.current
+    if (!canvas || !dataUrl || !baseImage) return null
     canvas.discardActiveObject()
     canvas.requestRenderAll()
-    return canvas.toDataURL({ format: 'png', multiplier: 1 / scaleRef.current })
+    const output = document.createElement('canvas')
+    output.width = baseImage.naturalWidth
+    output.height = baseImage.naturalHeight
+    const context = output.getContext('2d')
+    if (!context) return null
+    context.drawImage(baseImage, 0, 0, output.width, output.height)
+    const annotations = canvas.toCanvasElement(1 / scaleRef.current)
+    context.drawImage(annotations, 0, 0, output.width, output.height)
+    return output.toDataURL('image/png')
   }
   const save = async (): Promise<void> => {
     const result = exportImage()
@@ -207,17 +287,11 @@ export function FabricEditor({ dataUrl, fileName, onOpen }: { dataUrl: string | 
     setStatus('클립보드에 복사됨')
     setTimeout(() => setStatus(''), 1800)
   }
-  const removeLast = (): void => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const objects = canvas.getObjects()
-    if (objects.length) canvas.remove(objects[objects.length - 1])
-    canvas.requestRenderAll()
-  }
   const clear = (): void => {
     const canvas = canvasRef.current
     if (!canvas) return
     canvas.remove(...canvas.getObjects())
+    recordHistory(canvas)
     canvas.requestRenderAll()
   }
   const tools: [Tool, string, typeof SelectObject24Regular][] = [
@@ -227,7 +301,7 @@ export function FabricEditor({ dataUrl, fileName, onOpen }: { dataUrl: string | 
     <div className="toolbar editor-toolbar">
       <button className="tool-button" onClick={onOpen}><FolderOpen24Regular />이미지 열기</button>
       <span className="toolbar-divider" />
-      <button className="tool-button" onClick={removeLast}><ArrowReply24Regular />실행 취소</button>
+      <button className="tool-button" onClick={() => void undo()}><ArrowReply24Regular />실행 취소</button>
       <button className="tool-button danger" onClick={clear}><Delete24Regular />주석 삭제</button>
       <span className="toolbar-divider" />
       <label className="compact-field">색상<input type="color" value={color} onChange={(e) => setColor(e.target.value)} /></label>
@@ -240,7 +314,7 @@ export function FabricEditor({ dataUrl, fileName, onOpen }: { dataUrl: string | 
       <aside className="edit-rail">{tools.map(([id, label, Icon]) => <button key={id} className={`icon-button ${tool === id ? 'is-active' : ''}`} title={label} onClick={() => setTool(id)}><Icon /></button>)}</aside>
       <main className="edit-workspace" ref={stage}>
         <div className="document-bar"><strong>{fileName}</strong><span>{dataUrl ? '주석을 추가한 뒤 저장하세요' : '캡처 또는 관리 탭에서 이미지를 여세요'}</span></div>
-        <div className={`artboard ${dataUrl ? '' : 'is-empty'}`}>{!dataUrl && <div className="editor-empty"><Image24Regular /><strong>편집할 이미지가 없습니다</strong><span>캡처 결과를 사용하거나 이미지 파일을 직접 여세요.</span><button className="secondary-button" onClick={onOpen}><FolderOpen24Regular />이미지 열기</button></div>}<div className="canvas-wrap" style={{ display: dataUrl ? 'block' : 'none' }}><canvas ref={canvasNode} /></div></div>
+        <div className={`artboard ${dataUrl ? '' : 'is-empty'}`}>{!dataUrl && <div className="editor-empty"><Image24Regular /><strong>편집할 이미지가 없습니다</strong><span>캡처 결과를 사용하거나 이미지 파일을 직접 여세요.</span><button className="secondary-button" onClick={onOpen}><FolderOpen24Regular />이미지 열기</button></div>}<div className="canvas-wrap" style={{ display: dataUrl ? 'block' : 'none', backgroundImage: dataUrl ? `url("${dataUrl}")` : undefined, backgroundSize: '100% 100%', backgroundRepeat: 'no-repeat' }}><canvas ref={canvasNode} /></div></div>
       </main>
       <aside className="properties editor-properties"><div className="properties-title">편집 도구</div><div className="editor-help"><strong>{tools.find(([id]) => id === tool)?.[1]}</strong><p>{tool === 'select' ? '개체를 선택해 이동하거나 크기를 조절합니다.' : tool === 'mosaic' ? '가릴 영역을 드래그하면 픽셀 처리됩니다.' : '캔버스 위에서 드래그해 주석을 추가합니다.'}</p></div><div className="layer-section"><span>원본 이미지</span><small>배경 레이어 · 잠김</small></div></aside>
     </div>

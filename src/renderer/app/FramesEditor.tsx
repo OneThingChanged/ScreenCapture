@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Delete24Regular, FolderOpen24Regular, Image24Regular, Save24Regular, VideoClip24Regular } from '@fluentui/react-icons'
 import type { FramesMeta } from '../../shared/types'
 
@@ -11,9 +11,17 @@ export function FramesEditor({ initialPath }: { initialPath?: string }) {
   const [busy, setBusy] = useState('')
   const [fps, setFps] = useState(30)
   const selectedRow = useRef<HTMLButtonElement | null>(null)
+  const historyRef = useRef<Array<{ items: number[]; selected: number }>>([])
+  const undo = useCallback((): void => {
+    const previous = historyRef.current.pop()
+    if (!previous) return
+    setItems(previous.items)
+    setSelected(previous.selected)
+  }, [])
   useEffect(() => { if (initialPath) setPath(initialPath) }, [initialPath])
   useEffect(() => {
     if (!path) return
+    historyRef.current = []
     setBusy('프레임 추출 중…')
     setMeta(null)
     void window.api.frames.extract(path).then((next) => {
@@ -40,6 +48,11 @@ export function FramesEditor({ initialPath }: { initialPath?: string }) {
         target instanceof HTMLSelectElement ||
         target instanceof HTMLTextAreaElement
       ) return
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'z') {
+        event.preventDefault()
+        undo()
+        return
+      }
       if (items.length === 0) return
 
       let move: ((current: number) => number) | null = null
@@ -56,7 +69,7 @@ export function FramesEditor({ initialPath }: { initialPath?: string }) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [items.length])
+  }, [items.length, undo])
   const selectedIndex = items[Math.min(selected, items.length - 1)]
   const selectedTime = useMemo(() => meta && selectedIndex !== undefined ? meta.times[selectedIndex] : 0, [meta, selectedIndex])
   const pick = async (): Promise<void> => {
@@ -65,8 +78,11 @@ export function FramesEditor({ initialPath }: { initialPath?: string }) {
   }
   const remove = (): void => {
     if (!items.length) return
-    setItems((current) => current.filter((_, index) => index !== selected))
-    setSelected((current) => Math.max(0, Math.min(current, items.length - 2)))
+    historyRef.current.push({ items: [...items], selected })
+    if (historyRef.current.length > 100) historyRef.current.shift()
+    const next = items.filter((_, index) => index !== selected)
+    setItems(next)
+    setSelected(Math.max(0, Math.min(selected, next.length - 1)))
   }
   const exportFile = async (format: 'mp4' | 'gif'): Promise<void> => {
     if (!meta || !items.length) return

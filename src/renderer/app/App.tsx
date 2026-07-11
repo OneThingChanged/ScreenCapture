@@ -118,7 +118,12 @@ function ManagePanel({ refreshKey, onOpen }: { refreshKey: number; onOpen: (file
   const [preview, setPreview] = useState<string | null>(null)
   const [videoError, setVideoError] = useState(false)
   const [query, setQuery] = useState('')
+  const [renameTarget, setRenameTarget] = useState<MediaFile | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [renameError, setRenameError] = useState('')
+  const [renaming, setRenaming] = useState(false)
   const rowRefs = useRef(new Map<string, HTMLButtonElement>())
+  const renameInputRef = useRef<HTMLInputElement>(null)
   const refresh = useCallback(async () => {
     const next = await window.api.media.list()
     setFiles(next)
@@ -160,12 +165,51 @@ function ManagePanel({ refreshKey, onOpen }: { refreshKey: number; onOpen: (file
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [selectedPath, selectVisibleFile, visible])
-  const renameFile = async (): Promise<void> => {
+  useEffect(() => {
+    if (!renameTarget) return
+    window.requestAnimationFrame(() => {
+      const input = renameInputRef.current
+      if (!input) return
+      const extensionIndex = renameValue.lastIndexOf('.')
+      input.focus()
+      input.setSelectionRange(0, extensionIndex > 0 ? extensionIndex : renameValue.length)
+    })
+  }, [renameTarget])
+  const renameFile = (): void => {
     if (!selected) return
-    const name = window.prompt('새 파일명', selected.name)
-    if (!name || name === selected.name) return
-    await window.api.media.rename(selected.path, name)
-    await refresh()
+    setRenameTarget(selected)
+    setRenameValue(selected.name)
+    setRenameError('')
+  }
+  const closeRename = (): void => {
+    if (renaming) return
+    setRenameTarget(null)
+    setRenameError('')
+  }
+  const submitRename = async (): Promise<void> => {
+    const target = renameTarget
+    const name = renameValue.trim()
+    if (!target || renaming) return
+    if (!name) {
+      setRenameError('파일명을 입력하세요.')
+      return
+    }
+    if (name === target.name) {
+      closeRename()
+      return
+    }
+    setRenaming(true)
+    setRenameError('')
+    try {
+      const renamed = await window.api.media.rename(target.path, name)
+      await refresh()
+      setSelectedPath(renamed.path)
+      setRenameTarget(null)
+    } catch (error) {
+      setRenameError(error instanceof Error ? error.message : '이름을 변경하지 못했습니다.')
+    } finally {
+      setRenaming(false)
+    }
   }
   const deleteFile = async (): Promise<void> => {
     if (!selected || !window.confirm(`삭제할까요?\n${selected.name}`)) return
@@ -176,7 +220,7 @@ function ManagePanel({ refreshKey, onOpen }: { refreshKey: number; onOpen: (file
     <div className="toolbar">
       <button className="tool-button" onClick={() => void window.api.media.openFolder()}><FolderOpen24Regular />저장 폴더 열기</button>
       <span className="toolbar-divider" />
-      <button className="tool-button" disabled={!selected} onClick={() => void renameFile()}><Rename24Regular />이름 변경</button>
+      <button className="tool-button" disabled={!selected} onClick={renameFile}><Rename24Regular />이름 변경</button>
       <button className="tool-button danger" disabled={!selected} onClick={() => void deleteFile()}><Delete24Regular />삭제</button>
       <span className="toolbar-spacer" />
       <label className="search-box"><Filter24Regular /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="파일 검색" /></label>
@@ -192,6 +236,15 @@ function ManagePanel({ refreshKey, onOpen }: { refreshKey: number; onOpen: (file
         {selected ? <><div className="preview-heading"><div><strong>{selected.name}</strong><span>{selected.kind === 'image' ? '이미지' : '동영상'} · {fmtSize(selected.size)}</span></div><button className="secondary-button" onClick={() => onOpen(selected, preview ?? undefined)}><Edit24Regular />{selected.kind === 'image' ? '편집에서 열기' : '프레임 편집'}</button></div><div className="preview-canvas">{selected.kind === 'image' ? (preview ? <img src={preview} alt={selected.name} /> : <div className="video-placeholder"><Image24Regular /><strong>이미지 불러오는 중…</strong></div>) : videoError ? <div className="video-placeholder"><VideoClip24Regular /><strong>이 영상은 내장 플레이어로 재생할 수 없습니다</strong><span>프레임 편집 또는 파일 위치 열기를 이용하세요.</span></div> : <video key={selected.path} src={window.api.media.url(selected.path)} controls preload="metadata" onError={() => setVideoError(true)} />}</div><div className="preview-footer"><span>{selected.path}</span><button onClick={() => void window.api.media.openFolder(selected.path)}>파일 위치 열기</button></div></> : <div className="preview-empty"><Image24Regular /><span>미리 볼 파일을 선택하세요.</span></div>}
       </div>
     </div>
+    {renameTarget && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeRename() }}>
+      <form className="rename-dialog" role="dialog" aria-modal="true" aria-labelledby="rename-title" onSubmit={(event) => { event.preventDefault(); void submitRename() }} onKeyDown={(event) => { if (event.key === 'Escape') closeRename() }}>
+        <div className="rename-dialog-header"><div><Rename24Regular /><strong id="rename-title">이름 변경</strong></div><IconButton type="button" label="닫기" onClick={closeRename} disabled={renaming}><Dismiss24Regular /></IconButton></div>
+        <label htmlFor="rename-file-name">새 파일명</label>
+        <input ref={renameInputRef} id="rename-file-name" value={renameValue} onChange={(event) => { setRenameValue(event.target.value); setRenameError('') }} aria-invalid={Boolean(renameError)} aria-describedby={renameError ? 'rename-error' : undefined} disabled={renaming} />
+        {renameError && <div className="rename-error" id="rename-error">{renameError}</div>}
+        <div className="rename-dialog-actions"><button type="button" className="secondary-button" onClick={closeRename} disabled={renaming}>취소</button><button type="submit" className="primary-button" disabled={renaming}>{renaming ? '변경 중…' : '변경'}</button></div>
+      </form>
+    </div>}
   </section>
 }
 

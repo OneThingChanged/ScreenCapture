@@ -1,4 +1,5 @@
-import { app } from 'electron'
+import { app, nativeImage } from 'electron'
+import { writeFile } from 'node:fs/promises'
 import { createTray, recreateTray } from './tray'
 import { registerIpc, notifyFrameRecordState } from './ipc'
 import { registerFramesIpc } from './frames'
@@ -15,11 +16,12 @@ import {
   unregisterShortcuts
 } from './shortcuts'
 import { captureFullScreen, captureRegion, captureWindow } from './capture'
-import { saveImage } from './storage'
+import { imageToDataUrl, saveImage } from './storage'
 import {
   openEditorWindow,
   openMainWindow,
   getMainWindow,
+  notifyCaptureCompleted,
   setTrayRecreateHandler
 } from './windows'
 import {
@@ -68,6 +70,7 @@ app.whenReady().then(async () => {
   const isSelftest =
     process.env.RECORD_SELFTEST ||
     process.env.EDITOR_SELFTEST ||
+    process.env.EDITOR_RENDER_SELFTEST ||
     process.env.CAPTURE_SELFTEST
   if (!isSelftest) {
     openMainWindow()
@@ -79,10 +82,36 @@ app.whenReady().then(async () => {
     setTimeout(() => toggleRecording(), 2500)
   }
 
+  // 이미지 편집기 렌더링 자가 테스트: 지정 이미지를 열고 창 전체를 PNG로 캡처한다.
+  if (process.env.EDITOR_RENDER_SELFTEST) {
+    const sourcePath = process.env.EDITOR_RENDER_SELFTEST
+    const outputPath = process.env.EDITOR_RENDER_SELFTEST_OUTPUT
+    const image = nativeImage.createFromPath(sourcePath)
+    if (image.isEmpty() || !outputPath) {
+      console.error('[editor-render-selftest] invalid input or output path')
+      app.quit()
+      return
+    }
+    notifyCaptureCompleted({
+      dataUrl: imageToDataUrl(image),
+      savedPath: sourcePath,
+      mode: 'fullscreen',
+      openEditor: true,
+      createdAt: Date.now()
+    })
+    setTimeout(async () => {
+      const webContents = getMainWindow()?.webContents
+      const rendered = await webContents?.capturePage()
+      if (rendered) await writeFile(outputPath, rendered.toPNG())
+      app.quit()
+    }, 1800)
+    return
+  }
+
   // 편집기 자가 테스트: 캡쳐 → 편집기 → 도형 추가 → 저장 → 종료
   if (process.env.EDITOR_SELFTEST && !process.env.CAPTURE_SELFTEST) {
     const image = await captureFullScreen()
-    if (image) openEditorWindow(image.toDataURL())
+    if (image) openEditorWindow(imageToDataUrl(image))
     return
   }
 

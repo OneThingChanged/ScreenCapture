@@ -5,7 +5,7 @@ import {
   type Display,
   type NativeImage
 } from 'electron'
-import { saveImage, copyImageToClipboard } from './storage'
+import { saveImage, copyImageToClipboard, imageToDataUrl } from './storage'
 import { getSettings } from './settings'
 import {
   getMainWindow,
@@ -79,7 +79,7 @@ export async function captureRegion(target?: Display): Promise<NativeImage | nul
       height: display.bounds.height
     },
     scaleFactor: display.scaleFactor,
-    thumbnailDataUrl: fullImage.toDataURL()
+    thumbnailDataUrl: imageToDataUrl(fullImage)
   }
 
   // 자동 테스트: 디스플레이 중앙 200x150 DIP 영역을 강제 선택
@@ -131,7 +131,7 @@ export async function captureWindow(): Promise<NativeImage | null> {
   const sources: WindowSource[] = valid.map((s) => ({
     id: s.id,
     name: s.name,
-    thumbnailDataUrl: s.thumbnail.toDataURL()
+    thumbnailDataUrl: imageToDataUrl(s.thumbnail)
   }))
 
   // 자동 테스트: picker 없이 첫 창 선택
@@ -161,7 +161,7 @@ export async function handleCapturedImage(image: NativeImage, mode: CaptureMode)
   const openEditor =
     settings.afterCapture === 'editor' || settings.afterCapture === 'both'
   notifyCaptureCompleted({
-    dataUrl: image.toDataURL(),
+    dataUrl: imageToDataUrl(image),
     savedPath,
     mode,
     openEditor,

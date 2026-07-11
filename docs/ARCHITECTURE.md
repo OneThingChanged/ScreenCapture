@@ -41,6 +41,16 @@ Recording resolves a screen or window source in the main process, then sends the
 
 The main process owns filesystem access. A restricted `sc-media://` protocol serves approved local media to the renderer, enabling in-app video playback without exposing arbitrary filesystem URLs. Images can also be returned as data URLs for editing.
 
+Native images are converted through PNG buffers rather than Electron's logical-DPI data URL helper. This preserves physical pixels when high-DPI screenshots and imported images cross the main/renderer boundary.
+
+## Editing and undo history
+
+The image editor displays the source bitmap as a locked CSS-backed layer and uses Fabric.js for annotation objects. Export composites the original-resolution bitmap with an independently scaled annotation layer. Pointer coordinates are derived from the visible canvas bounds so drawing remains cursor-aligned at non-100% Windows display scales.
+
+Fabric objects use explicit top-left origins for drag-created geometry. Rectangle and ellipse dimensions account for stroke width, ensuring the visible lower-right edge follows the pointer. Drawing tools remain active for repeated annotations; targeting an existing object switches to selection behavior.
+
+Image undo history stores bounded Fabric canvas snapshots and restores them asynchronously for `Ctrl+Z`. Frame editing keeps bounded snapshots of the retained frame indices and selection position, allowing deleted frames to be restored without re-extracting the video.
+
 ## Tray and lifecycle
 
 The `closeToTray` setting controls the main window close event. When enabled, ScreenCapture hides the main window, keeps global shortcuts active, and recreates the Tray object to ensure Windows receives a fresh notification-area registration. When disabled, closing the main window quits the process.

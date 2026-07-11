@@ -4,6 +4,7 @@ import { basename, extname, join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { IPC, type MediaFile } from '../shared/types'
 import { getSettings } from './settings'
+import { imageToDataUrl } from './storage'
 
 const imageExt = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'])
 const videoExt = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi'])
@@ -86,7 +87,7 @@ export function registerMediaIpc(): void {
     if (image.isEmpty()) return null
     const size = image.getSize()
     const preview = size.width > 1800 ? image.resize({ width: 1800 }) : image
-    return preview.toDataURL()
+    return imageToDataUrl(preview)
   })
 
   ipcMain.handle(IPC.mediaOpenFolder, async (_e, path?: string): Promise<void> => {

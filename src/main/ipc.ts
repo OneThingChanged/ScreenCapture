@@ -6,6 +6,7 @@ import { registerShortcuts, setShortcutCaptureActive } from './shortcuts'
 import {
   copyImageToClipboard,
   imageFromDataUrl,
+  imageToDataUrl,
   saveImage,
   saveImageToPath
 } from './storage'
@@ -115,7 +116,7 @@ export function registerIpc(): void {
     const path = result.filePaths[0]
     const image = nativeImage.createFromPath(path)
     if (image.isEmpty()) throw new Error('이미지를 불러올 수 없습니다.')
-    return { path, dataUrl: image.toDataURL() }
+    return { path, dataUrl: imageToDataUrl(image) }
   })
 
   ipcMain.handle(IPC.editorSave, async (e, dataUrl: string) => {

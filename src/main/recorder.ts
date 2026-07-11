@@ -24,7 +24,7 @@ const ffmpegPath = ffmpegStatic
   ? ffmpegStatic.replace('app.asar', 'app.asar.unpacked')
   : null
 import { getSettings } from './settings'
-import { saveBuffer } from './storage'
+import { imageToDataUrl, saveBuffer } from './storage'
 import {
   preloadPath,
   loadRoute,
@@ -85,7 +85,7 @@ async function resolveRegionTarget(display: Display): Promise<RecordTarget | nul
       height: display.bounds.height
     },
     scaleFactor: display.scaleFactor,
-    thumbnailDataUrl: source.thumbnail.toDataURL()
+    thumbnailDataUrl: imageToDataUrl(source.thumbnail)
   }
   const result = await openOverlayWindow(overlaySource)
   if (result.cancelled || !result.rect) return null
@@ -120,7 +120,7 @@ async function resolveWindowTarget(): Promise<RecordTarget | null> {
   const sources: WindowSource[] = valid.map((s) => ({
     id: s.id,
     name: s.name,
-    thumbnailDataUrl: s.thumbnail.toDataURL()
+    thumbnailDataUrl: imageToDataUrl(s.thumbnail)
   }))
   const result = await openPickerWindow(sources)
   if (result.cancelled || !result.id) return null

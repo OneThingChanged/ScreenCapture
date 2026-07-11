@@ -46,6 +46,11 @@ export function copyImageToClipboard(image: NativeImage): void {
   clipboard.writeImage(image)
 }
 
+/** NativeImage의 논리 DPI 배율을 제거하고 원본 PNG 픽셀을 보존한 data URL 생성 */
+export function imageToDataUrl(image: NativeImage): string {
+  return `data:image/png;base64,${image.toPNG().toString('base64')}`
+}
+
 /** dataURL 을 NativeImage 로 변환 */
 export function imageFromDataUrl(dataUrl: string): NativeImage {
   return nativeImage.createFromDataURL(dataUrl)
