@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { createTray } from './tray'
+import { createTray, recreateTray } from './tray'
 import { registerIpc, notifyFrameRecordState } from './ipc'
 import { registerFramesIpc } from './frames'
 import { registerCompressIpc } from './compress'
@@ -16,7 +16,12 @@ import {
 } from './shortcuts'
 import { captureFullScreen, captureRegion, captureWindow } from './capture'
 import { saveImage } from './storage'
-import { openEditorWindow, openMainWindow, getMainWindow } from './windows'
+import {
+  openEditorWindow,
+  openMainWindow,
+  getMainWindow,
+  setTrayRecreateHandler
+} from './windows'
 import {
   registerRecorderIpc,
   toggleRecording,
@@ -51,6 +56,7 @@ app.whenReady().then(async () => {
   registerUpdaterIpc()
   registerMediaIpc()
   createTray()
+  setTrayRecreateHandler(recreateTray)
   registerShortcuts()
 
   // 녹화 상태를 메인 대시보드 + 녹화 프레임에 반영

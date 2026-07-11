@@ -1,4 +1,10 @@
-import { desktopCapturer, screen, Notification, type NativeImage } from 'electron'
+import {
+  desktopCapturer,
+  screen,
+  Notification,
+  type Display,
+  type NativeImage
+} from 'electron'
 import { saveImage, copyImageToClipboard } from './storage'
 import { getSettings } from './settings'
 import {
@@ -13,6 +19,7 @@ import type {
   Rect,
   WindowSource
 } from '../shared/types'
+import { sourceForDisplay } from './displays'
 
 /** 디스플레이의 물리 픽셀 해상도 (스크린샷 원본 크기) */
 function physicalSize(display: Electron.Display): { width: number; height: number } {
@@ -41,35 +48,23 @@ export async function grabScreenSources(): Promise<
     thumbnailSize: max
   })
 
-  const result: { display: Electron.Display; image: NativeImage }[] = []
-  for (const source of sources) {
-    const display = displays.find((d) => String(d.id) === source.display_id)
-    if (display) {
-      result.push({ display, image: source.thumbnail })
-    }
-  }
-  // display_id 매칭 실패 시(일부 환경) 순서대로 폴백 매칭
-  if (result.length === 0 && sources.length > 0) {
-    sources.forEach((s, i) => {
-      if (displays[i]) result.push({ display: displays[i], image: s.thumbnail })
-    })
-  }
-  return result
+  return displays.flatMap((display) => {
+    const source = sourceForDisplay(sources, display)
+    return source ? [{ display, image: source.thumbnail }] : []
+  })
 }
 
 /** 커서가 위치한 디스플레이의 전체 화면 캡쳐 */
-export async function captureFullScreen(): Promise<NativeImage | null> {
-  const cursor = screen.getCursorScreenPoint()
-  const target = screen.getDisplayNearestPoint(cursor)
+export async function captureFullScreen(target?: Display): Promise<NativeImage | null> {
+  const display = target ?? screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
   const sources = await grabScreenSources()
-  const match = sources.find((s) => s.display.id === target.id) ?? sources[0]
+  const match = sources.find((s) => s.display.id === display.id) ?? sources[0]
   return match ? match.image : null
 }
 
 /** 커서가 위치한 디스플레이에서 영역을 드래그 선택하여 캡쳐 */
-export async function captureRegion(): Promise<NativeImage | null> {
-  const cursor = screen.getCursorScreenPoint()
-  const display = screen.getDisplayNearestPoint(cursor)
+export async function captureRegion(target?: Display): Promise<NativeImage | null> {
+  const display = target ?? screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
   const sources = await grabScreenSources()
   const match = sources.find((s) => s.display.id === display.id) ?? sources[0]
   if (!match) return null
@@ -186,6 +181,8 @@ export async function handleCapturedImage(image: NativeImage, mode: CaptureMode)
 
 /** 캡쳐 모드별 진입점 */
 export async function startCapture(mode: CaptureMode): Promise<void> {
+  // 단축키를 누른 바로 그 순간의 커서 모니터를 고정한다.
+  const targetDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
   const main = getMainWindow()
   // 주 창은 화면에 그대로 유지하되, 우리 앱이 캡처 결과에 포함되지 않도록 한다.
   // Windows에서는 WDA_EXCLUDEFROMCAPTURE가 적용되어 창 뒤의 화면이 캡처된다.
@@ -194,9 +191,9 @@ export async function startCapture(mode: CaptureMode): Promise<void> {
   try {
     const image =
       mode === 'fullscreen'
-        ? await captureFullScreen()
+        ? await captureFullScreen(targetDisplay)
         : mode === 'region'
-          ? await captureRegion()
+          ? await captureRegion(targetDisplay)
           : await captureWindow()
     if (image) await handleCapturedImage(image, mode)
   } finally {

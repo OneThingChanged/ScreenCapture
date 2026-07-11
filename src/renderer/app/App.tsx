@@ -105,7 +105,6 @@ function CapturePanel({ settings, recording, onRefreshSettings }: {
       </main>
       <aside className="properties">
         <div className="properties-title">빠른 설정</div>
-        <div className="property-group"><label>캡처 후 동작</label><div className="value-card">{settings?.afterCapture === 'save' ? '즉시 저장' : settings?.afterCapture === 'editor' ? '편집 탭에서 열기' : '저장 후 편집 탭에서 열기'}</div></div>
         <div className="property-group"><label>저장 형식</label><div className="segmented"><button className={settings?.imageFormat === 'png' ? 'is-active' : ''} onClick={() => void updateFormat('png')}>PNG</button><button className={settings?.imageFormat === 'jpg' ? 'is-active' : ''} onClick={() => void updateFormat('jpg')}>JPG</button></div></div>
         <div className="property-group"><label>저장 위치</label><div className="path-field">{settings?.saveDir ?? '불러오는 중…'}</div><button className="secondary-button" onClick={() => void window.api.media.openFolder()}><FolderOpen24Regular />폴더 열기</button></div>
       </aside>

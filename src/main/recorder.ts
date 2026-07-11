@@ -4,7 +4,8 @@ import {
   desktopCapturer,
   ipcMain,
   screen,
-  Notification
+  Notification,
+  type Display
 } from 'electron'
 import { spawn } from 'node:child_process'
 import { rm } from 'node:fs/promises'
@@ -32,6 +33,7 @@ import {
   openFramesWindow,
   getMainWindow
 } from './windows'
+import { sourceForDisplay } from './displays'
 
 let recorderWin: BrowserWindow | null = null
 let recording = false
@@ -66,15 +68,12 @@ interface RecordTarget {
 }
 
 /** 영역 녹화: 커서 화면의 freeze 위에서 영역을 드래그 선택 → screen source + crop(물리px) */
-async function resolveRegionTarget(): Promise<RecordTarget | null> {
-  const cursor = screen.getCursorScreenPoint()
-  const display = screen.getDisplayNearestPoint(cursor)
+async function resolveRegionTarget(display: Display): Promise<RecordTarget | null> {
   const sources = await desktopCapturer.getSources({
     types: ['screen'],
     thumbnailSize: physicalSize(display)
   })
-  const source =
-    sources.find((s) => String(display.id) === s.display_id) ?? sources[0]
+  const source = sourceForDisplay(sources, display)
   if (!source) return null
 
   const overlaySource: OverlaySource = {
@@ -129,12 +128,9 @@ async function resolveWindowTarget(): Promise<RecordTarget | null> {
 }
 
 /** 전체화면 녹화: 커서가 있는 화면 전체 */
-async function resolveFullscreenTarget(): Promise<RecordTarget | null> {
-  const cursor = screen.getCursorScreenPoint()
-  const display = screen.getDisplayNearestPoint(cursor)
+async function resolveFullscreenTarget(display: Display): Promise<RecordTarget | null> {
   const sources = await desktopCapturer.getSources({ types: ['screen'] })
-  const source =
-    sources.find((s) => String(display.id) === s.display_id) ?? sources[0]
+  const source = sourceForDisplay(sources, display)
   return source ? { sourceId: source.id } : null
 }
 
@@ -162,6 +158,8 @@ function startWithTarget(target: RecordTarget): void {
 async function startRecording(mode: RecordMode): Promise<void> {
   if (recording) return
 
+  // 단축키를 누른 바로 그 순간의 커서 모니터를 고정한다.
+  const targetDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
   const main = getMainWindow()
   main?.setContentProtection(true)
 
@@ -169,10 +167,10 @@ async function startRecording(mode: RecordMode): Promise<void> {
   try {
     target =
       mode === 'region'
-        ? await resolveRegionTarget()
+        ? await resolveRegionTarget(targetDisplay)
         : mode === 'window'
           ? await resolveWindowTarget()
-          : await resolveFullscreenTarget()
+          : await resolveFullscreenTarget(targetDisplay)
   } catch (error) {
     main?.setContentProtection(false)
     throw error
@@ -198,8 +196,7 @@ export async function startFrameRegionRecording(absRect: Rect): Promise<void> {
     types: ['screen'],
     thumbnailSize: physicalSize(display)
   })
-  const source =
-    sources.find((s) => String(display.id) === s.display_id) ?? sources[0]
+  const source = sourceForDisplay(sources, display)
   if (!source) {
     getMainWindow()?.setContentProtection(false)
     new Notification({ title: '녹화', body: '녹화할 화면을 찾지 못했습니다.' }).show()

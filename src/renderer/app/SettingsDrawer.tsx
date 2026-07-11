@@ -87,7 +87,6 @@ export function SettingsDrawer({ onClose, onSaved }: { onClose: () => void; onSa
       <label>저장 폴더<div className="input-with-button"><input value={form.saveDir} onChange={(e) => patch('saveDir', e.target.value)} /><button onClick={() => void browse()} title="폴더 선택"><FolderOpen24Regular /></button></div></label>
       <label>이미지 형식<select value={form.imageFormat} onChange={(e) => patch('imageFormat', e.target.value as AppSettings['imageFormat'])}><option value="png">PNG</option><option value="jpg">JPG</option></select></label>
       {form.imageFormat === 'jpg' && <label>JPG 품질<input type="range" min="1" max="100" value={form.jpgQuality} onChange={(e) => patch('jpgQuality', Number(e.target.value))} /><span className="range-value">{form.jpgQuality}%</span></label>}
-      <label>캡처 후 동작<select value={form.afterCapture} onChange={(e) => patch('afterCapture', e.target.value as AppSettings['afterCapture'])}><option value="editor">편집 탭에서 열기</option><option value="save">즉시 저장</option><option value="both">저장 후 편집 탭에서 열기</option></select></label>
       <label className="check-row"><input type="checkbox" checked={form.copyToClipboard} onChange={(e) => patch('copyToClipboard', e.target.checked)} />클립보드에 자동 복사</label>
       <h3>녹화</h3>
       <label>기본 FPS<input type="number" min="5" max="60" value={form.recordFps} onChange={(e) => patch('recordFps', Math.max(5, Math.min(60, Number(e.target.value) || 30)))} /></label>

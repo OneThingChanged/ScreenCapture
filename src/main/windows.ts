@@ -22,6 +22,7 @@ export function loadRoute(win: BrowserWindow, route: string): void {
 let mainWin: BrowserWindow | null = null
 let shellReady = false
 let quitting = false
+let trayRecreateHandler: (() => void) | null = null
 const pending: (() => void)[] = []
 
 app.on('before-quit', () => {
@@ -55,6 +56,9 @@ function ensureMainWindow(): BrowserWindow {
     if (!quitting && getSettings().closeToTray) {
       event.preventDefault()
       mainWin?.hide()
+      // 일부 Windows 환경에서는 창을 숨긴 뒤 알림 영역 아이콘이 유실될 수 있다.
+      // 새 Tray 객체를 만들어 Shell_NotifyIcon에 다시 등록한다.
+      trayRecreateHandler?.()
     } else if (!quitting) {
       quitting = true
       app.quit()
@@ -92,6 +96,10 @@ export function showMainDashboard(): BrowserWindow {
 
 export function getMainWindow(): BrowserWindow | null {
   return mainWin && !mainWin.isDestroyed() ? mainWin : null
+}
+
+export function setTrayRecreateHandler(handler: () => void): void {
+  trayRecreateHandler = handler
 }
 
 export function isMainDashboard(): boolean {

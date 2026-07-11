@@ -33,6 +33,13 @@ Shortcuts can be changed in Settings. Press **Change**, then enter the complete 
 
 Captured files are stored in `Pictures\ScreenCapture` by default.
 
+## Documentation
+
+- [Documentation index](docs/README.md)
+- [Korean user guide](docs/USER_GUIDE.ko.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Release and update procedure](docs/RELEASE.md)
+
 ## Development
 
 ```powershell
