@@ -2,7 +2,7 @@ import { app, ipcMain, dialog, shell, BrowserWindow, Notification } from 'electr
 import { spawn } from 'node:child_process'
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import ffmpegStatic from 'ffmpeg-static'
 import {
   IPC,
@@ -148,8 +148,26 @@ export function registerFramesIpc(): void {
   )
 
   // 편집된 프레임들을 영상(MP4) 또는 GIF 로 내보내기
-  ipcMain.handle(IPC.framesExport, async (_e, payload: FramesExportPayload) => {
-    return exportFrames(payload)
+  ipcMain.handle(IPC.framesExport, async (e, payload: FramesExportPayload) => {
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const defaultOutput = uniqueOut(
+      getSettings().saveDir,
+      `Edited_${timestamp()}`,
+      payload.format
+    )
+    const result = await dialog.showSaveDialog(win!, {
+      title: payload.format === 'mp4' ? '편집 영상 저장' : '편집 GIF 저장',
+      defaultPath: defaultOutput,
+      filters: payload.format === 'mp4'
+        ? [{ name: 'MP4 동영상', extensions: ['mp4'] }]
+        : [{ name: 'GIF 이미지', extensions: ['gif'] }]
+    })
+    if (result.canceled || !result.filePath) return null
+    const extension = `.${payload.format}`
+    const output = result.filePath.toLowerCase().endsWith(extension)
+      ? result.filePath
+      : `${result.filePath}${extension}`
+    return exportFrames(payload, output)
   })
 }
 
@@ -181,7 +199,7 @@ function runFfmpeg(args: string[]): Promise<void> {
  * 선택된 프레임들을 순서대로 이어붙여 MP4/GIF 로 인코딩.
  * concat demuxer 로 PNG 시퀀스를 각 1/fps 길이로 합친다.
  */
-async function exportFrames(payload: FramesExportPayload): Promise<string> {
+async function exportFrames(payload: FramesExportPayload, output: string): Promise<string> {
   const { tempDir, indices, format, fps } = payload
   if (!ffmpegPath) throw new Error('ffmpeg 를 찾을 수 없습니다.')
   if (indices.length === 0) throw new Error('내보낼 프레임이 없습니다.')
@@ -201,9 +219,8 @@ async function exportFrames(payload: FramesExportPayload): Promise<string> {
   const listPath = join(tempDir, 'concat.txt')
   await writeFile(listPath, lines.join('\n'), 'utf8')
 
-  const saveDir = getSettings().saveDir
-  await mkdir(saveDir, { recursive: true })
-  const out = uniqueOut(saveDir, `Edited_${timestamp()}`, format)
+  await mkdir(dirname(output), { recursive: true })
+  const out = output
 
   if (format === 'mp4') {
     await runFfmpeg([

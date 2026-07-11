@@ -162,6 +162,7 @@ browse.addEventListener('click', async () => {
 })
 
 saveBtn.addEventListener('click', async () => {
+  const current = await window.api.settings.get()
   const patch: Partial<AppSettings> = {
     saveDir: saveDir.value,
     imageFormat: imageFormat.value as AppSettings['imageFormat'],
@@ -173,6 +174,7 @@ saveBtn.addEventListener('click', async () => {
     keepWebm: keepWebm.checked,
     recordFps: Math.min(60, Math.max(5, Number(recordFps.value) || 30)),
     shortcuts: {
+      ...current.shortcuts,
       region: scInputs.region.value,
       window: scInputs.window.value,
       fullscreen: scInputs.fullscreen.value,

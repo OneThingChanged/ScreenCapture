@@ -1,5 +1,6 @@
 import { resolve } from 'node:path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
@@ -19,6 +20,7 @@ export default defineConfig({
     }
   },
   renderer: {
+    plugins: [react()],
     root: 'src/renderer',
     server: {
       port: 4000,
@@ -27,14 +29,10 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
-          main: resolve(__dirname, 'src/renderer/main/index.html'),
+          app: resolve(__dirname, 'src/renderer/app/index.html'),
           frame: resolve(__dirname, 'src/renderer/frame/index.html'),
-          frames: resolve(__dirname, 'src/renderer/frames/index.html'),
-          compress: resolve(__dirname, 'src/renderer/compress/index.html'),
           overlay: resolve(__dirname, 'src/renderer/overlay/index.html'),
           picker: resolve(__dirname, 'src/renderer/picker/index.html'),
-          editor: resolve(__dirname, 'src/renderer/editor/index.html'),
-          settings: resolve(__dirname, 'src/renderer/settings/index.html'),
           recorder: resolve(__dirname, 'src/renderer/recorder/index.html')
         }
       }

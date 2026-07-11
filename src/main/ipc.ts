@@ -1,8 +1,14 @@
-import { ipcMain, dialog, BrowserWindow, app } from 'electron'
+import { ipcMain, dialog, BrowserWindow, app, nativeImage } from 'electron'
+import { join } from 'node:path'
 import { IPC, type AppSettings, type MainAction, type Rect } from '../shared/types'
 import { getSettings, setSettings } from './settings'
-import { registerShortcuts } from './shortcuts'
-import { saveImage, copyImageToClipboard, imageFromDataUrl } from './storage'
+import { registerShortcuts, unregisterShortcuts } from './shortcuts'
+import {
+  copyImageToClipboard,
+  imageFromDataUrl,
+  saveImage,
+  saveImageToPath
+} from './storage'
 import { startCapture } from './capture'
 import {
   toggleRecording,
@@ -17,8 +23,7 @@ import {
   getFrameWindow,
   openFramesWindow,
   openCompressWindow,
-  showMainDashboard,
-  isMainDashboard
+  showMainDashboard
 } from './windows'
 
 /** 메인 대시보드에서 들어온 액션 처리 */
@@ -44,11 +49,7 @@ async function handleMainAction(action: MainAction): Promise<void> {
       stopRecordingExternal()
       return
     }
-    const win = getMainWindow()
-    win?.hide()
-    await new Promise((r) => setTimeout(r, 200))
     openRecordFrameWindow()
-    win?.show()
     return
   }
 
@@ -59,26 +60,12 @@ async function handleMainAction(action: MainAction): Promise<void> {
       toggleRecording(mode) // 정지
       return
     }
-    // 새로 시작: 대시보드를 잠시 숨겨 영역/창 선택·녹화를 방해하지 않는다
-    const win = getMainWindow()
-    win?.hide()
-    await new Promise((r) => setTimeout(r, 250))
+    // 주 창은 유지하고 녹화 대상에서는 제외한다.
     toggleRecording(mode)
-    win?.show()
     return
   }
 
-  // 이미지 캡쳐: 메인 창이 스크린샷에 찍히지 않도록 잠시 숨긴다
-  const win = getMainWindow()
-  win?.hide()
-  await new Promise((r) => setTimeout(r, 250))
-  try {
-    await startCapture(action as 'region' | 'window' | 'fullscreen')
-  } finally {
-    // 편집기로 전환됐다면 해당 화면의 로드 완료 시점에 주 창이 표시된다.
-    // 취소/즉시 저장이면 기존 대시보드를 다시 보여준다.
-    if (isMainDashboard()) win?.show()
-  }
+  await startCapture(action as 'region' | 'window' | 'fullscreen')
 }
 
 /** IPC 핸들러 등록 (메인 ↔ 렌더러) */
@@ -100,6 +87,11 @@ export function registerIpc(): void {
     return next
   })
 
+  ipcMain.on(IPC.settingsShortcutCapture, (_e, active: boolean) => {
+    if (active) unregisterShortcuts()
+    else registerShortcuts()
+  })
+
   ipcMain.handle(IPC.dialogPickFolder, async (e) => {
     const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
     const result = await dialog.showOpenDialog(win!, {
@@ -109,13 +101,46 @@ export function registerIpc(): void {
     return result.canceled ? null : result.filePaths[0]
   })
 
-  ipcMain.handle(IPC.editorSave, async (_e, dataUrl: string) => {
+  ipcMain.handle(IPC.editorPick, async (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const result = await dialog.showOpenDialog(win!, {
+      title: '편집할 이미지 선택',
+      properties: ['openFile'],
+      defaultPath: getSettings().saveDir,
+      filters: [
+        { name: '이미지', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp'] },
+        { name: '모든 파일', extensions: ['*'] }
+      ]
+    })
+    if (result.canceled || !result.filePaths[0]) return null
+    const path = result.filePaths[0]
+    const image = nativeImage.createFromPath(path)
+    if (image.isEmpty()) throw new Error('이미지를 불러올 수 없습니다.')
+    return { path, dataUrl: image.toDataURL() }
+  })
+
+  ipcMain.handle(IPC.editorSave, async (e, dataUrl: string) => {
     const image = imageFromDataUrl(dataUrl)
-    const path = await saveImage(image)
     if (process.env.EDITOR_SELFTEST) {
+      const path = await saveImage(image)
       console.log('[selftest] editor saved:', path, image.getSize())
       setTimeout(() => app.quit(), 200)
+      return path
     }
+    const now = new Date()
+    const part = (value: number): string => String(value).padStart(2, '0')
+    const name = `Edited_${now.getFullYear()}-${part(now.getMonth() + 1)}-${part(now.getDate())}_${part(now.getHours())}-${part(now.getMinutes())}-${part(now.getSeconds())}.png`
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const result = await dialog.showSaveDialog(win!, {
+      title: '편집 이미지 저장',
+      defaultPath: join(getSettings().saveDir, name),
+      filters: [
+        { name: 'PNG 이미지', extensions: ['png'] },
+        { name: 'JPEG 이미지', extensions: ['jpg', 'jpeg'] }
+      ]
+    })
+    if (result.canceled || !result.filePath) return null
+    const path = await saveImageToPath(image, result.filePath)
     return path
   })
 

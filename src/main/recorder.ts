@@ -29,7 +29,8 @@ import {
   loadRoute,
   openOverlayWindow,
   openPickerWindow,
-  openFramesWindow
+  openFramesWindow,
+  getMainWindow
 } from './windows'
 
 let recorderWin: BrowserWindow | null = null
@@ -46,6 +47,7 @@ export function isRecording(): boolean {
 
 function setRecording(value: boolean): void {
   recording = value
+  if (!value) getMainWindow()?.setContentProtection(false)
   for (const cb of stateListeners) cb(value)
 }
 
@@ -109,7 +111,9 @@ async function resolveWindowTarget(): Promise<RecordTarget | null> {
     types: ['window'],
     thumbnailSize: { width: 1920, height: 1080 }
   })
-  const valid = raw.filter((s) => s.name && !s.thumbnail.isEmpty())
+  const valid = raw.filter(
+    (s) => s.name && s.name !== 'ScreenCapture' && !s.thumbnail.isEmpty()
+  )
   if (valid.length === 0) {
     new Notification({ title: '창 녹화', body: '녹화할 창을 찾지 못했습니다.' }).show()
     return null
@@ -158,15 +162,25 @@ function startWithTarget(target: RecordTarget): void {
 async function startRecording(mode: RecordMode): Promise<void> {
   if (recording) return
 
-  const target =
-    mode === 'region'
-      ? await resolveRegionTarget()
-      : mode === 'window'
-        ? await resolveWindowTarget()
-        : await resolveFullscreenTarget()
+  const main = getMainWindow()
+  main?.setContentProtection(true)
+
+  let target: RecordTarget | null = null
+  try {
+    target =
+      mode === 'region'
+        ? await resolveRegionTarget()
+        : mode === 'window'
+          ? await resolveWindowTarget()
+          : await resolveFullscreenTarget()
+  } catch (error) {
+    main?.setContentProtection(false)
+    throw error
+  }
 
   if (!target) {
     // 사용자가 취소했거나 대상을 못 찾음 → 조용히 종료
+    main?.setContentProtection(false)
     return
   }
   startWithTarget(target)
@@ -178,6 +192,7 @@ async function startRecording(mode: RecordMode): Promise<void> {
  */
 export async function startFrameRegionRecording(absRect: Rect): Promise<void> {
   if (recording) return
+  getMainWindow()?.setContentProtection(true)
   const display = screen.getDisplayMatching(absRect)
   const sources = await desktopCapturer.getSources({
     types: ['screen'],
@@ -186,6 +201,7 @@ export async function startFrameRegionRecording(absRect: Rect): Promise<void> {
   const source =
     sources.find((s) => String(display.id) === s.display_id) ?? sources[0]
   if (!source) {
+    getMainWindow()?.setContentProtection(false)
     new Notification({ title: '녹화', body: '녹화할 화면을 찾지 못했습니다.' }).show()
     return
   }
@@ -219,12 +235,18 @@ export function toggleRecording(mode: RecordMode = 'fullscreen'): void {
 }
 
 /** webm → mp4/gif 변환 (ffmpeg). 변환 결과 경로 반환 */
-function convert(input: string, output: string, format: 'mp4' | 'gif'): Promise<void> {
+function convert(
+  input: string,
+  output: string,
+  format: 'mp4' | 'gif',
+  fps: number
+): Promise<void> {
   return new Promise((resolve, reject) => {
     if (!ffmpegPath) return reject(new Error('ffmpeg 없음'))
+    const safeFps = Math.max(5, Math.min(60, Math.round(fps) || 30))
     const args =
       format === 'mp4'
-        ? ['-y', '-i', input, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', output]
+        ? ['-y', '-i', input, '-vf', `fps=${safeFps}`, '-r', String(safeFps), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', output]
         : ['-y', '-i', input, '-vf', 'fps=12,scale=720:-1:flags=lanczos', output]
     const ps = spawn(ffmpegPath, args)
     ps.on('error', reject)
@@ -236,6 +258,10 @@ function convert(input: string, output: string, format: 'mp4' | 'gif'): Promise<
 export function registerRecorderIpc(): void {
   ipcMain.on(IPC.recordSave, async (_e, buffer: ArrayBuffer) => {
     const settings = getSettings()
+    const completedWindow = recorderWin
+    setRecording(false)
+    completedWindow?.close()
+    if (recorderWin === completedWindow) recorderWin = null
     try {
       const webmPath = await saveBuffer(Buffer.from(buffer), 'Recording', 'webm')
       const produced: string[] = []
@@ -248,7 +274,7 @@ export function registerRecorderIpc(): void {
       for (const fmt of targets) {
         const out = webmPath.replace(/\.webm$/, `.${fmt}`)
         try {
-          await convert(webmPath, out, fmt)
+          await convert(webmPath, out, fmt, settings.recordFps)
           produced.push(out)
         } catch (err) {
           console.error(`[recorder] ${fmt} 변환 실패:`, err)
@@ -282,9 +308,7 @@ export function registerRecorderIpc(): void {
       console.error('[recorder] 저장 실패:', err)
       new Notification({ title: '녹화 오류', body: String(err) }).show()
     } finally {
-      setRecording(false)
-      recorderWin?.close()
-      recorderWin = null
+      if (recorderWin === completedWindow) recorderWin = null
     }
   })
 

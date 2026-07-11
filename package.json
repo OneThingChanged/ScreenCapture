@@ -1,7 +1,7 @@
 {
   "name": "screen-capture",
-  "version": "0.1.0",
-  "description": "화면 캡쳐 프로그램 (영역/창/전체 캡쳐, 단축키, 주석 편집, 녹화)",
+  "version": "0.1.1",
+  "description": "Windows screen capture, recording, media management, and editing app",
   "main": "out/main/index.js",
   "author": "jintae",
   "license": "MIT",
@@ -21,6 +21,9 @@
   "devDependencies": {
     "@electron/packager": "^20.0.0",
     "@types/node": "^22.9.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.4",
     "electron": "^43.1.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
@@ -29,8 +32,11 @@
     "vite": "^7.3.6"
   },
   "dependencies": {
+    "@fluentui/react-icons": "^2.0.333",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.8.9",
-    "ffmpeg-static": "^5.3.0"
+    "ffmpeg-static": "^5.3.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   }
 }

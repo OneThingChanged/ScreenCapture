@@ -11,7 +11,9 @@ export function registerShortcuts(): void {
     [shortcuts.region, () => startCapture('region')],
     [shortcuts.window, () => startCapture('window')],
     [shortcuts.fullscreen, () => startCapture('fullscreen')],
-    [shortcuts.record, () => toggleRecording()]
+    [shortcuts.recordRegion, () => toggleRecording('region')],
+    [shortcuts.recordWindow, () => toggleRecording('window')],
+    [shortcuts.recordFullscreen, () => toggleRecording('fullscreen')]
   ]
   for (const [accel, fn] of map) {
     if (accel) {

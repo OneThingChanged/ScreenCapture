@@ -25,6 +25,8 @@ export interface AppSettings {
   jpgQuality: number
   afterCapture: AfterCapture
   copyToClipboard: boolean
+  /** 창 닫기 시 종료하지 않고 트레이에 유지 */
+  closeToTray: boolean
   /** @deprecated exportMp4/exportGif/keepWebm 로 대체됨 (구버전 호환용) */
   recordFormat: RecordFormat
   /** 녹화 결과를 MP4 로 내보내기 */
@@ -38,6 +40,10 @@ export interface AppSettings {
     region: string
     window: string
     fullscreen: string
+    recordRegion: string
+    recordWindow: string
+    recordFullscreen: string
+    /** @deprecated recordFullscreen으로 이전됨 */
     record: string
   }
 }
@@ -98,6 +104,38 @@ export type MainAction =
   | 'frames'
   | 'compress'
   | 'settings'
+
+export type AppTab = 'capture' | 'manage' | 'edit'
+export type EditTool = 'image' | 'frames' | 'compress'
+
+export interface ShellNavigation {
+  tab?: AppTab
+  tool?: EditTool
+  path?: string
+  settingsOpen?: boolean
+}
+
+export interface CaptureCompleted {
+  dataUrl: string
+  savedPath: string | null
+  mode: CaptureMode
+  openEditor: boolean
+  createdAt: number
+}
+
+export interface MediaFile {
+  path: string
+  name: string
+  kind: 'image' | 'video'
+  extension: string
+  size: number
+  modifiedAt: number
+}
+
+export interface EditorImageSource {
+  dataUrl: string
+  path: string
+}
 
 /** 프레임 편집 결과 내보내기 포맷 */
 export type ExportFormat = 'mp4' | 'gif'
@@ -175,11 +213,20 @@ export const IPC = {
   mainAction: 'main:action',
   mainHome: 'main:home',
   mainRecordState: 'main:recordState',
+  shellNavigate: 'shell:navigate',
+  captureCompleted: 'capture:completed',
+  mediaList: 'media:list',
+  mediaPreview: 'media:preview',
+  mediaOpenFolder: 'media:openFolder',
+  mediaContextMenu: 'media:contextMenu',
+  mediaRename: 'media:rename',
+  mediaDelete: 'media:delete',
   overlayInit: 'overlay:init',
   overlayResult: 'overlay:result',
   pickerInit: 'picker:init',
   pickerResult: 'picker:result',
   editorLoad: 'editor:load',
+  editorPick: 'editor:pick',
   editorSave: 'editor:save',
   editorCopy: 'editor:copy',
   editorClose: 'editor:close',
@@ -207,6 +254,7 @@ export const IPC = {
   compressRun: 'compress:run',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
+  settingsShortcutCapture: 'settings:shortcutCapture',
   dialogPickFolder: 'dialog:pickFolder',
   updateGetState: 'update:getState',
   updateCheck: 'update:check',

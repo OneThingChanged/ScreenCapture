@@ -4,5 +4,7 @@ dist/
 dist-packager/
 .claude/
 .codex/
+.codex-qa/
+prototype/
 *.log
 .DS_Store

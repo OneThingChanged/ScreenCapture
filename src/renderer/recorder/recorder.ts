@@ -5,6 +5,7 @@ let stream: MediaStream | null = null
 let chunks: Blob[] = []
 let rafId: number | null = null
 let video: HTMLVideoElement | null = null
+let stopRequested = false
 
 /** crop 이 지정되면 video → canvas 로 잘라낸 스트림을 만든다 */
 async function buildCroppedStream(source: MediaStream, crop: Rect, fps: number): Promise<MediaStream> {
@@ -33,6 +34,7 @@ async function buildCroppedStream(source: MediaStream, crop: Rect, fps: number):
 
 window.api.recorder.onStart(async ({ sourceId, fps, crop }: RecordStartPayload) => {
   try {
+    stopRequested = false
     chunks = []
     // Electron 데스크탑 캡쳐 제약 (표준 타입에 없어 any 캐스팅)
     const constraints = {
@@ -66,6 +68,7 @@ window.api.recorder.onStart(async ({ sourceId, fps, crop }: RecordStartPayload) 
       window.api.recorder.save(buf)
     }
     recorder.start(1000) // 1초마다 청크 flush
+    if (stopRequested && recorder.state !== 'inactive') recorder.stop()
   } catch (err) {
     window.api.recorder.error(String(err))
   }
@@ -73,4 +76,5 @@ window.api.recorder.onStart(async ({ sourceId, fps, crop }: RecordStartPayload) 
 
 window.api.recorder.onStop(() => {
   if (recorder && recorder.state !== 'inactive') recorder.stop()
+  else stopRequested = true
 })

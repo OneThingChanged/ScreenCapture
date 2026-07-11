@@ -1,25 +1,27 @@
-# 릴리즈 및 자동 업데이트
+# Releases and automatic updates
 
-ScreenCapture는 `electron-updater`와 GitHub Releases를 사용한다. 설치된 NSIS 빌드는 아래 자산을 기준으로 업데이트를 확인한다.
+All GitHub release titles and release notes for ScreenCapture must be written in English only.
 
-- `latest.yml`: 최신 버전, 설치 파일명, SHA-512 해시
-- `ScreenCapture-Setup-<version>-x64.exe`: 자동 업데이트 가능한 NSIS 설치본
-- `ScreenCapture-Setup-<version>-x64.exe.blockmap`: 차등 다운로드 메타데이터
-- `ScreenCapture-Portable-<version>-x64.exe`: 수동 실행용 portable 빌드(자동 업데이트 대상 아님)
+ScreenCapture uses `electron-updater` and GitHub Releases. Installed NSIS builds check for updates using these assets:
 
-업데이트 endpoint는 electron-builder가 패키지 안의 `app-update.yml`에 기록한다. 앱에서 `setFeedURL`을 직접 호출하지 않는다.
+- `latest.yml`: version, installer filename, and SHA-512 metadata
+- `ScreenCapture-Setup-<version>-x64.exe`: update-capable NSIS installer
+- `ScreenCapture-Setup-<version>-x64.exe.blockmap`: differential-download metadata
+- `ScreenCapture-Portable-<version>-x64.exe`: standalone portable build; it is not an automatic-update target
 
-## 릴리즈 절차
+`electron-builder` writes the update endpoint to the packaged `app-update.yml`. Do not call `setFeedURL` in the application.
 
-1. `package.json`의 `version`을 올리고 lockfile을 동기화한다.
-2. 검증 및 릴리즈 빌드를 실행한다.
+## Release procedure
+
+1. Increase the `version` in `package.json` and synchronize the lockfile.
+2. Run validation and create the release build.
 
 ```powershell
 npm run typecheck
 npm run release:build
 ```
 
-3. 아래 산출물을 확인한다.
+3. Verify these artifacts:
 
 ```text
 dist/ScreenCapture-Setup-<version>-x64.exe
@@ -28,20 +30,20 @@ dist/ScreenCapture-Portable-<version>-x64.exe
 dist/latest.yml
 ```
 
-4. 소스 커밋과 `v<version>` 태그를 푸시한다.
-5. GitHub Release를 draft/prerelease가 아닌 Latest로 게시하고 위 네 자산을 첨부한다.
+4. Commit the source, push it, and push a `v<version>` tag.
+5. Publish a non-draft, non-prerelease GitHub Release as Latest. Write its title and notes in English only, and attach all four artifacts.
 
 ```powershell
-gh release create v<version> --latest `
+gh release create v<version> --latest --title "ScreenCapture v<version>" --notes-file <english-notes-file> `
   dist/ScreenCapture-Setup-<version>-x64.exe `
   dist/ScreenCapture-Setup-<version>-x64.exe.blockmap `
   dist/ScreenCapture-Portable-<version>-x64.exe `
   dist/latest.yml
 ```
 
-## 주의 사항
+## Requirements and cautions
 
-- 자동 업데이트는 설치본(NSIS)에서만 동작한다. 개발 모드와 portable 빌드에서는 릴리즈 페이지를 통한 수동 업데이트를 사용한다.
-- 릴리즈는 반드시 Latest로 게시해야 한다.
-- 현재 Windows Authenticode 인증서가 없으므로 SmartScreen 경고가 표시될 수 있다. `latest.yml`의 SHA-512 검증과 코드 서명은 별개다.
-- 이미 배포한 버전 번호로 파일을 교체하지 않는다. 수정 릴리즈는 항상 더 높은 버전으로 배포한다.
+- Automatic updates work only in installed NSIS builds. Development and portable builds must use the release page for manual updates.
+- Publish the release as Latest so update checks can find it.
+- Windows Authenticode signing is not configured, so SmartScreen may display a warning. The SHA-512 validation in `latest.yml` is separate from code signing.
+- Never replace artifacts for an already published version. Publish every fix with a higher version number.

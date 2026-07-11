@@ -1,7 +1,7 @@
 import { clipboard, nativeImage, type NativeImage } from 'electron'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, extname, join } from 'node:path'
 import { getSettings } from './settings'
 import type { ImageFormat } from '../shared/types'
 
@@ -49,6 +49,17 @@ export function copyImageToClipboard(image: NativeImage): void {
 /** dataURL 을 NativeImage 로 변환 */
 export function imageFromDataUrl(dataUrl: string): NativeImage {
   return nativeImage.createFromDataURL(dataUrl)
+}
+
+/** 편집 이미지를 사용자가 선택한 경로/확장자로 저장한다. */
+export async function saveImageToPath(image: NativeImage, path: string): Promise<string> {
+  await mkdir(dirname(path), { recursive: true })
+  const extension = extname(path).toLowerCase()
+  const buffer = extension === '.jpg' || extension === '.jpeg'
+    ? image.toJPEG(getSettings().jpgQuality)
+    : image.toPNG()
+  await writeFile(path, buffer)
+  return path
 }
 
 /** 임의 버퍼(녹화 등)를 파일로 저장. 저장 경로 반환 */

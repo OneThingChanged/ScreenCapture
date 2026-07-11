@@ -4,6 +4,11 @@ import { registerIpc, notifyFrameRecordState } from './ipc'
 import { registerFramesIpc } from './frames'
 import { registerCompressIpc } from './compress'
 import { registerUpdaterIpc } from './updater'
+import {
+  registerMediaIpc,
+  registerMediaProtocol,
+  registerMediaScheme
+} from './media'
 import { registerShortcuts, unregisterShortcuts } from './shortcuts'
 import { captureFullScreen, captureRegion, captureWindow } from './capture'
 import { saveImage } from './storage'
@@ -14,6 +19,8 @@ import {
   setRecorderStateListener
 } from './recorder'
 import { IPC } from '../shared/types'
+
+registerMediaScheme()
 
 // 단일 인스턴스 보장
 const gotLock = app.requestSingleInstanceLock()
@@ -27,11 +34,13 @@ app.on('second-instance', () => {
 })
 
 app.whenReady().then(async () => {
+  registerMediaProtocol()
   registerIpc()
   registerRecorderIpc()
   registerFramesIpc()
   registerCompressIpc()
   registerUpdaterIpc()
+  registerMediaIpc()
   createTray()
   registerShortcuts()
 

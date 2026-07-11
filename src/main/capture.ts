@@ -1,7 +1,12 @@
 import { desktopCapturer, screen, Notification, type NativeImage } from 'electron'
 import { saveImage, copyImageToClipboard } from './storage'
 import { getSettings } from './settings'
-import { openOverlayWindow, openPickerWindow, openEditorWindow } from './windows'
+import {
+  getMainWindow,
+  notifyCaptureCompleted,
+  openOverlayWindow,
+  openPickerWindow
+} from './windows'
 import type {
   CaptureMode,
   OverlaySource,
@@ -147,7 +152,7 @@ export async function captureWindow(): Promise<NativeImage | null> {
 }
 
 /** 캡쳐 결과 이미지를 설정에 따라 저장/복사 처리 */
-export async function handleCapturedImage(image: NativeImage): Promise<void> {
+export async function handleCapturedImage(image: NativeImage, mode: CaptureMode): Promise<void> {
   const settings = getSettings()
   let savedPath: string | null = null
 
@@ -160,9 +165,13 @@ export async function handleCapturedImage(image: NativeImage): Promise<void> {
 
   const openEditor =
     settings.afterCapture === 'editor' || settings.afterCapture === 'both'
-  if (openEditor) {
-    openEditorWindow(image.toDataURL())
-  }
+  notifyCaptureCompleted({
+    dataUrl: image.toDataURL(),
+    savedPath,
+    mode,
+    openEditor,
+    createdAt: Date.now()
+  })
 
   // 편집기를 여는 경우 알림은 생략 (편집기 자체가 피드백)
   if (!openEditor) {
@@ -177,19 +186,22 @@ export async function handleCapturedImage(image: NativeImage): Promise<void> {
 
 /** 캡쳐 모드별 진입점 */
 export async function startCapture(mode: CaptureMode): Promise<void> {
-  if (mode === 'fullscreen') {
-    const image = await captureFullScreen()
-    if (image) await handleCapturedImage(image)
-    return
-  }
-  if (mode === 'region') {
-    const image = await captureRegion()
-    if (image) await handleCapturedImage(image)
-    return
-  }
-  if (mode === 'window') {
-    const image = await captureWindow()
-    if (image) await handleCapturedImage(image)
-    return
+  const main = getMainWindow()
+  // 주 창은 화면에 그대로 유지하되, 우리 앱이 캡처 결과에 포함되지 않도록 한다.
+  // Windows에서는 WDA_EXCLUDEFROMCAPTURE가 적용되어 창 뒤의 화면이 캡처된다.
+  main?.setContentProtection(true)
+  await new Promise((resolve) => setTimeout(resolve, 60))
+  try {
+    const image =
+      mode === 'fullscreen'
+        ? await captureFullScreen()
+        : mode === 'region'
+          ? await captureRegion()
+          : await captureWindow()
+    if (image) await handleCapturedImage(image, mode)
+  } finally {
+    if (main && !main.isDestroyed()) {
+      main.setContentProtection(false)
+    }
   }
 }
