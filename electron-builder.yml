@@ -8,14 +8,22 @@ files:
   - resources/icon.png
 asarUnpack:
   - "**/node_modules/ffmpeg-static/**"
+publish:
+  - provider: github
+    owner: OneThingChanged
+    repo: ScreenCapture
 win:
+  electronUpdaterCompatibility: ">= 2.16"
   target:
     - target: nsis
     - target: portable
   icon: resources/icon.png
 nsis:
+  artifactName: ScreenCapture-Setup-${version}-${arch}.${ext}
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   shortcutName: ScreenCapture
+portable:
+  artifactName: ScreenCapture-Portable-${version}-${arch}.${ext}

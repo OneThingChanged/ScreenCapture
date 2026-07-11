@@ -3,6 +3,7 @@ import { createTray } from './tray'
 import { registerIpc, notifyFrameRecordState } from './ipc'
 import { registerFramesIpc } from './frames'
 import { registerCompressIpc } from './compress'
+import { registerUpdaterIpc } from './updater'
 import { registerShortcuts, unregisterShortcuts } from './shortcuts'
 import { captureFullScreen, captureRegion, captureWindow } from './capture'
 import { saveImage } from './storage'
@@ -30,6 +31,7 @@ app.whenReady().then(async () => {
   registerRecorderIpc()
   registerFramesIpc()
   registerCompressIpc()
+  registerUpdaterIpc()
   createTray()
   registerShortcuts()
 

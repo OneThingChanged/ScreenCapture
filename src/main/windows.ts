@@ -228,8 +228,8 @@ export function openSettingsWindow(): BrowserWindow {
   }
   return showPrimaryRoute('settings', {
     width: 520,
-    height: 640,
-    resizable: false
+    height: 760,
+    resizable: true
   })
 }
 

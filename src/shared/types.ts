@@ -148,6 +148,27 @@ export interface FramesMeta {
   times: number[]
 }
 
+/** 앱 업데이트 화면에 표시할 상태 */
+export type UpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'not-available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error'
+
+export interface AppUpdateState {
+  status: UpdateStatus
+  currentVersion: string
+  availableVersion?: string
+  releaseNotes?: string
+  percent?: number
+  transferred?: number
+  total?: number
+  message?: string
+}
+
 /** IPC 채널 이름 모음 */
 export const IPC = {
   captureStart: 'capture:start',
@@ -186,5 +207,11 @@ export const IPC = {
   compressRun: 'compress:run',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
-  dialogPickFolder: 'dialog:pickFolder'
+  dialogPickFolder: 'dialog:pickFolder',
+  updateGetState: 'update:getState',
+  updateCheck: 'update:check',
+  updateDownload: 'update:download',
+  updateInstall: 'update:install',
+  updateOpenReleases: 'update:openReleases',
+  updateState: 'update:state'
 } as const

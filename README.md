@@ -9,6 +9,7 @@ Windows용 화면 캡쳐 프로그램. Electron + TypeScript.
 - **화면 녹화**: WebM 녹화 후 MP4 / GIF 변환 (ffmpeg 내장)
 - **저장 + 클립보드 복사** 동시 지원, 날짜 기반 자동 파일명/폴더
 - **트레이 상주**, 설정 화면(저장 폴더, 포맷, 단축키, 녹화 옵션)
+- **GitHub Releases 자동 업데이트** 확인·다운로드·재시작 설치
 
 ## 개발
 ```bash
@@ -18,7 +19,7 @@ npm run typecheck  # 타입 검사
 npm run build      # out/ 빌드
 ```
 
-트레이 아이콘 좌클릭 = 전체 캡쳐, 우클릭 = 메뉴. 결과물은 기본적으로
+트레이 아이콘 좌클릭 = 메인 창 열기, 우클릭 = 메뉴. 결과물은 기본적으로
 `사진\ScreenCapture\` 폴더에 저장됩니다.
 
 ## 패키징
@@ -26,12 +27,15 @@ npm run build      # out/ 빌드
 npm run pack            # @electron/packager 로 실행본 생성 (권장, 서명 불필요)
                         # → dist-packager/ScreenCapture-win32-x64/ScreenCapture.exe
 npm run pack:installer  # electron-builder NSIS 인스톨러 (아래 주의 참고)
+npm run release:build   # NSIS + portable + latest.yml 릴리즈 자산 생성
 ```
 
 > ⚠️ `pack:installer`(electron-builder)는 코드서명 도구(winCodeSign) 압축 해제 시
 > **심볼릭 링크 생성 권한**이 필요합니다. 일반 사용자 환경에서는 실패하므로,
 > Windows **개발자 모드**를 켜거나 **관리자 권한 터미널**에서 실행하세요.
 > 그렇지 않으면 서명이 필요 없는 `npm run pack` 을 사용하면 됩니다.
+
+릴리즈 게시와 자동 업데이트 자산은 `docs/RELEASE.md`를 참고하세요.
 
 ## 구조
 ```

@@ -31,6 +31,13 @@
       .shortcut { cursor: pointer; background: #fff; }
       .shortcut.recording { border-color: #2563eb; background: #eef2ff; }
       .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .update-card { padding: 12px; border: 1px solid #d7dce5; border-radius: 8px; background: #fff; }
+      .update-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .update-version { font-size: 13px; font-weight: 700; }
+      .update-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+      .update-message { margin-top: 8px; min-height: 16px; font-size: 12px; color: #4b5563; white-space: pre-wrap; }
+      .update-message.error { color: #dc2626; }
+      #updateProgress { width: 100%; height: 8px; margin-top: 10px; display: none; }
     </style>
   </head>
   <body>
@@ -91,6 +98,20 @@
     <div class="field">
       <label>FPS</label>
       <input type="number" id="recordFps" min="5" max="60" />
+    </div>
+
+    <h2>업데이트</h2>
+    <div class="update-card">
+      <div class="update-head">
+        <span class="update-version">현재 버전 <span id="currentVersion">—</span></span>
+      </div>
+      <progress id="updateProgress" max="100" value="0"></progress>
+      <div class="update-message" id="updateMessage">업데이트 확인 버튼을 눌러주세요.</div>
+      <div class="update-actions">
+        <button class="ghost" id="checkUpdate">업데이트 확인</button>
+        <button id="updateAction" style="display:none;"></button>
+        <button class="ghost" id="openReleases">릴리즈 페이지</button>
+      </div>
     </div>
 
     <div class="row" style="margin-top:16px;">

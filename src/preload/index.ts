@@ -13,7 +13,8 @@ import {
   type FramesExportPayload,
   type CompressInfo,
   type CompressPayload,
-  type CompressResult
+  type CompressResult,
+  type AppUpdateState
 } from '../shared/types'
 
 const api = {
@@ -62,6 +63,16 @@ const api = {
   dialog: {
     pickFolder: (): Promise<string | null> =>
       ipcRenderer.invoke(IPC.dialogPickFolder)
+  },
+  updater: {
+    getState: (): Promise<AppUpdateState> => ipcRenderer.invoke(IPC.updateGetState),
+    check: (): Promise<AppUpdateState> => ipcRenderer.invoke(IPC.updateCheck),
+    download: (): Promise<AppUpdateState> => ipcRenderer.invoke(IPC.updateDownload),
+    install: (): void => ipcRenderer.send(IPC.updateInstall),
+    openReleases: (): void => ipcRenderer.send(IPC.updateOpenReleases),
+    onState: (cb: (state: AppUpdateState) => void): void => {
+      ipcRenderer.on(IPC.updateState, (_e, state: AppUpdateState) => cb(state))
+    }
   },
   overlay: {
     onInit: (cb: (source: OverlaySource) => void): void => {

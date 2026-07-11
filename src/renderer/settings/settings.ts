@@ -1,4 +1,4 @@
-import type { AppSettings } from '../../shared/types'
+import type { AppSettings, AppUpdateState } from '../../shared/types'
 
 const $ = <T extends HTMLElement>(id: string): T =>
   document.getElementById(id) as T
@@ -16,10 +16,73 @@ const keepWebm = $<HTMLInputElement>('keepWebm')
 const recordFps = $<HTMLInputElement>('recordFps')
 const saveBtn = $<HTMLButtonElement>('save')
 const status = $<HTMLSpanElement>('status')
+const currentVersion = $<HTMLSpanElement>('currentVersion')
+const updateMessage = $<HTMLDivElement>('updateMessage')
+const updateProgress = $<HTMLProgressElement>('updateProgress')
+const checkUpdate = $<HTMLButtonElement>('checkUpdate')
+const updateAction = $<HTMLButtonElement>('updateAction')
+const openReleases = $<HTMLButtonElement>('openReleases')
 
 $<HTMLButtonElement>('home').addEventListener('click', () => {
   window.api.main.home()
 })
+
+let updateState: AppUpdateState | null = null
+
+function renderUpdateState(state: AppUpdateState): void {
+  updateState = state
+  currentVersion.textContent = `v${state.currentVersion}`
+  updateMessage.classList.toggle('error', state.status === 'error')
+  checkUpdate.disabled = state.status === 'checking' || state.status === 'downloading'
+  updateAction.style.display = 'none'
+  updateProgress.style.display = 'none'
+
+  if (state.status === 'idle') {
+    updateMessage.textContent = '업데이트 확인 버튼을 눌러주세요.'
+  } else if (state.status === 'checking') {
+    updateMessage.textContent = '새 버전을 확인하는 중…'
+  } else if (state.status === 'available') {
+    updateMessage.textContent = `새 버전 v${state.availableVersion}을 사용할 수 있습니다.${
+      state.releaseNotes ? `\n\n${state.releaseNotes}` : ''
+    }`
+    updateAction.textContent = '다운로드'
+    updateAction.style.display = ''
+  } else if (state.status === 'not-available') {
+    updateMessage.textContent = '현재 최신 버전을 사용하고 있습니다.'
+  } else if (state.status === 'downloading') {
+    const percent = Math.round(state.percent ?? 0)
+    updateMessage.textContent = `업데이트 다운로드 중… ${percent}%`
+    updateProgress.value = percent
+    updateProgress.style.display = ''
+  } else if (state.status === 'downloaded') {
+    updateMessage.textContent = `v${state.availableVersion} 다운로드 완료. 재시작하면 설치됩니다.`
+    updateProgress.value = 100
+    updateProgress.style.display = ''
+    updateAction.textContent = '재시작하여 설치'
+    updateAction.style.display = ''
+  } else {
+    updateMessage.textContent = `업데이트 오류: ${state.message ?? '알 수 없는 오류'}`
+  }
+}
+
+checkUpdate.addEventListener('click', () => {
+  void window.api.updater.check().then(renderUpdateState)
+})
+
+updateAction.addEventListener('click', () => {
+  if (updateState?.status === 'available') {
+    void window.api.updater.download().then(renderUpdateState)
+  } else if (updateState?.status === 'downloaded') {
+    window.api.updater.install()
+  }
+})
+
+openReleases.addEventListener('click', () => {
+  window.api.updater.openReleases()
+})
+
+window.api.updater.onState(renderUpdateState)
+void window.api.updater.getState().then(renderUpdateState)
 
 const scInputs = {
   region: $<HTMLInputElement>('sc-region'),
