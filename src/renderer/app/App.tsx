@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Camera24Regular,
   Checkmark24Regular,
@@ -119,19 +119,48 @@ function ManagePanel({ refreshKey, onOpen }: { refreshKey: number; onOpen: (file
   const [preview, setPreview] = useState<string | null>(null)
   const [videoError, setVideoError] = useState(false)
   const [query, setQuery] = useState('')
+  const rowRefs = useRef(new Map<string, HTMLButtonElement>())
   const refresh = useCallback(async () => {
     const next = await window.api.media.list()
     setFiles(next)
     setSelectedPath((current) => next.some((f) => f.path === current) ? current : (next[0]?.path ?? ''))
   }, [])
   useEffect(() => { void refresh() }, [refresh, refreshKey])
+  const visible = files.filter((f) => f.name.toLowerCase().includes(query.toLowerCase()))
   const selected = files.find((f) => f.path === selectedPath) ?? null
   useEffect(() => {
     setPreview(null)
     setVideoError(false)
     if (selected?.kind === 'image') void window.api.media.preview(selected.path).then(setPreview)
   }, [selected?.path, selected?.kind])
-  const visible = files.filter((f) => f.name.toLowerCase().includes(query.toLowerCase()))
+  const selectVisibleFile = useCallback((index: number): void => {
+    const file = visible[index]
+    if (!file) return
+    setSelectedPath(file.path)
+    window.requestAnimationFrame(() => {
+      const row = rowRefs.current.get(file.path)
+      row?.focus({ preventScroll: true })
+      row?.scrollIntoView({ block: 'nearest' })
+    })
+  }, [visible])
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || !visible.length) return
+      const target = event.target as HTMLElement | null
+      if (target?.matches('input, textarea, select, video, [contenteditable="true"]') || target?.closest('.settings-drawer')) return
+      const current = visible.findIndex((file) => file.path === selectedPath)
+      let next = current
+      if (event.key === 'ArrowDown') next = current < 0 ? 0 : Math.min(current + 1, visible.length - 1)
+      else if (event.key === 'ArrowUp') next = current < 0 ? visible.length - 1 : Math.max(current - 1, 0)
+      else if (event.key === 'Home') next = 0
+      else if (event.key === 'End') next = visible.length - 1
+      else return
+      event.preventDefault()
+      selectVisibleFile(next)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [selectedPath, selectVisibleFile, visible])
   const renameFile = async (): Promise<void> => {
     if (!selected) return
     const name = window.prompt('새 파일명', selected.name)
@@ -157,7 +186,7 @@ function ManagePanel({ refreshKey, onOpen }: { refreshKey: number; onOpen: (file
     <div className="manage-layout">
       <div className="file-browser">
         <div className="file-header"><span>파일명</span><span>날짜</span><span>크기</span></div>
-        <div className="file-list">{visible.length ? visible.map((file) => <button key={file.path} className={`file-row ${file.path === selectedPath ? 'is-selected' : ''}`} onClick={() => setSelectedPath(file.path)} onContextMenu={(event) => { event.preventDefault(); setSelectedPath(file.path); window.api.media.contextMenu(file.path) }}>{file.kind === 'image' ? <Image24Regular /> : <VideoClip24Regular />}<span className="file-name">{file.name}</span><span>{fmtDate(file.modifiedAt)}</span><span>{fmtSize(file.size)}</span></button>) : <div className="empty-list"><Folder24Regular /><strong>저장된 미디어가 없습니다</strong><span>캡처하거나 녹화하면 여기에 표시됩니다.</span></div>}</div>
+        <div className="file-list">{visible.length ? visible.map((file) => <button ref={(element) => { if (element) rowRefs.current.set(file.path, element); else rowRefs.current.delete(file.path) }} key={file.path} className={`file-row ${file.path === selectedPath ? 'is-selected' : ''}`} onClick={() => setSelectedPath(file.path)} onContextMenu={(event) => { event.preventDefault(); setSelectedPath(file.path); window.api.media.contextMenu(file.path) }}>{file.kind === 'image' ? <Image24Regular /> : <VideoClip24Regular />}<span className="file-name">{file.name}</span><span>{fmtDate(file.modifiedAt)}</span><span>{fmtSize(file.size)}</span></button>) : <div className="empty-list"><Folder24Regular /><strong>저장된 미디어가 없습니다</strong><span>캡처하거나 녹화하면 여기에 표시됩니다.</span></div>}</div>
         <div className="browser-footer">총 {visible.length}개 · {fmtSize(visible.reduce((sum, file) => sum + file.size, 0))}</div>
       </div>
       <div className="media-preview">

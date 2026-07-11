@@ -2,7 +2,7 @@ import { ipcMain, dialog, BrowserWindow, app, nativeImage } from 'electron'
 import { join } from 'node:path'
 import { IPC, type AppSettings, type MainAction, type Rect } from '../shared/types'
 import { getSettings, setSettings } from './settings'
-import { registerShortcuts, unregisterShortcuts } from './shortcuts'
+import { registerShortcuts, setShortcutCaptureActive } from './shortcuts'
 import {
   copyImageToClipboard,
   imageFromDataUrl,
@@ -88,8 +88,7 @@ export function registerIpc(): void {
   })
 
   ipcMain.on(IPC.settingsShortcutCapture, (_e, active: boolean) => {
-    if (active) unregisterShortcuts()
-    else registerShortcuts()
+    setShortcutCaptureActive(active)
   })
 
   ipcMain.handle(IPC.dialogPickFolder, async (e) => {

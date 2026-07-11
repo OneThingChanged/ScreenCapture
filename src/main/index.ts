@@ -9,7 +9,11 @@ import {
   registerMediaProtocol,
   registerMediaScheme
 } from './media'
-import { registerShortcuts, unregisterShortcuts } from './shortcuts'
+import {
+  registerShortcuts,
+  resumeShortcutsIfSuspended,
+  unregisterShortcuts
+} from './shortcuts'
 import { captureFullScreen, captureRegion, captureWindow } from './capture'
 import { saveImage } from './storage'
 import { openEditorWindow, openMainWindow, getMainWindow } from './windows'
@@ -31,6 +35,11 @@ if (!gotLock) {
 // 두 번째 실행 시도 시 기존 메인 창을 띄워준다
 app.on('second-instance', () => {
   openMainWindow()
+})
+
+// 설정의 단축키 입력 도중 다른 프로그램으로 전환해도 전역 단축키가 해제된 채 남지 않게 한다.
+app.on('browser-window-blur', () => {
+  resumeShortcutsIfSuspended()
 })
 
 app.whenReady().then(async () => {
