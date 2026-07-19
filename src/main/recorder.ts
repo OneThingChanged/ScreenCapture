@@ -149,9 +149,18 @@ function startWithTarget(target: RecordTarget): void {
   if (recording) return
   recorderWin = new BrowserWindow({
     show: false,
-    webPreferences: { preload: preloadPath, sandbox: false }
+    webPreferences: {
+      preload: preloadPath,
+      sandbox: false,
+      // 녹화 전용 세션으로 화면/마이크 권한을 메인 UI와 분리한다.
+      partition: 'screen-recorder'
+    }
   })
   const captureSession = recorderWin.webContents.session
+  captureSession.setPermissionCheckHandler((_webContents, permission) => permission === 'media')
+  captureSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(permission === 'media')
+  })
   captureSession.setDisplayMediaRequestHandler((_request, callback) => {
     callback({
       video: { id: target.sourceId, name: target.sourceName },
@@ -160,6 +169,8 @@ function startWithTarget(target: RecordTarget): void {
   })
   recorderWin.once('closed', () => {
     captureSession.setDisplayMediaRequestHandler(null)
+    captureSession.setPermissionCheckHandler(null)
+    captureSession.setPermissionRequestHandler(null)
   })
   const payload: RecordStartPayload = {
     sourceId: target.sourceId,

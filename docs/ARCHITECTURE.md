@@ -35,7 +35,7 @@ The display mapping logic is centralized in `src/main/displays.ts` so screenshot
 
 ## Recording flow
 
-Recording resolves a screen or window source in the main process, then grants that source to a hidden recording renderer through Electron's display-media request handler. On Windows, the handler also grants a loopback stream for system output audio. The renderer uses `MediaRecorder` with WebM video and Opus audio. Region recording crops video through a canvas stream and reattaches the source audio tracks so cropping does not discard sound. The main process stores the WebM buffer and invokes the bundled ffmpeg binary for MP4 (H.264/AAC) or GIF output.
+Recording resolves a screen or window source in the main process, then grants that source to a hidden recording renderer through Electron's display-media request handler. A dedicated non-persistent Electron session scopes media permission to the recorder. On Windows, the handler supplies a loopback stream for system output audio, while `getUserMedia` supplies the default microphone. The renderer combines both inputs through a Web Audio graph and dynamics compressor into one track, then records WebM video with Opus audio through `MediaRecorder`. Region recording crops only the video through a canvas stream before attaching the mixed audio, so cropping does not discard sound. The main process stores the WebM buffer and invokes the bundled ffmpeg binary for MP4 (H.264/AAC) or GIF output.
 
 ## Media management
 

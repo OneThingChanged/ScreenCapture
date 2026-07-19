@@ -8,7 +8,7 @@ ScreenCapture is a Windows desktop app for screenshots, screen recording, media 
 
 - Persistent dark-themed workspace with Capture, Manage, and Edit tabs
 - Region, window, and full-screen screenshots
-- Region, window, and full-screen recording with Windows system audio to MP4
+- Region, window, and full-screen recording with mixed Windows system audio and default microphone input to MP4
 - Six configurable global shortcuts, including modifier-key combinations
 - High-DPI image editor with accurate cursor-aligned annotations, object selection, resizing, and `Ctrl+Z` undo
 - Image annotation tools: pen, arrow, rectangle, ellipse, text, mosaic, color, and stroke width

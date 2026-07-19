@@ -74,8 +74,11 @@ export async function saveBuffer(
   ext: string
 ): Promise<string> {
   const settings = getSettings()
-  await mkdir(settings.saveDir, { recursive: true })
-  const path = uniquePath(settings.saveDir, `${base}_${timestamp()}`, ext)
+  const saveDir = process.env.RECORD_SELFTEST && process.env.SELFTEST_SAVE_DIR
+    ? process.env.SELFTEST_SAVE_DIR
+    : settings.saveDir
+  await mkdir(saveDir, { recursive: true })
+  const path = uniquePath(saveDir, `${base}_${timestamp()}`, ext)
   await writeFile(path, buffer)
   return path
 }
