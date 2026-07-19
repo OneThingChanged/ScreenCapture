@@ -64,6 +64,7 @@ function physicalSize(display: Electron.Display): { width: number; height: numbe
 /** 녹화 대상 결정 결과 */
 interface RecordTarget {
   sourceId: string
+  sourceName: string
   crop?: Rect
 }
 
@@ -87,6 +88,14 @@ async function resolveRegionTarget(display: Display): Promise<RecordTarget | nul
     scaleFactor: display.scaleFactor,
     thumbnailDataUrl: imageToDataUrl(source.thumbnail)
   }
+  if (process.env.SELFTEST_RECT) {
+    overlaySource.testRect = {
+      x: Math.round(display.bounds.width / 2 - 320),
+      y: Math.round(display.bounds.height / 2 - 180),
+      width: 640,
+      height: 360
+    }
+  }
   const result = await openOverlayWindow(overlaySource)
   if (result.cancelled || !result.rect) return null
 
@@ -101,7 +110,7 @@ async function resolveRegionTarget(display: Display): Promise<RecordTarget | nul
   // 짝수 보정(인코더 호환) + 경계 클램프
   crop.width = Math.max(2, Math.min(crop.width, size.width - crop.x)) & ~1
   crop.height = Math.max(2, Math.min(crop.height, size.height - crop.y)) & ~1
-  return { sourceId: source.id, crop }
+  return { sourceId: source.id, sourceName: source.name, crop }
 }
 
 /** 창 녹화: 열린 창 picker 로 선택 → window source */
@@ -124,14 +133,15 @@ async function resolveWindowTarget(): Promise<RecordTarget | null> {
   }))
   const result = await openPickerWindow(sources)
   if (result.cancelled || !result.id) return null
-  return { sourceId: result.id }
+  const selected = valid.find((source) => source.id === result.id)
+  return selected ? { sourceId: selected.id, sourceName: selected.name } : null
 }
 
 /** 전체화면 녹화: 커서가 있는 화면 전체 */
 async function resolveFullscreenTarget(display: Display): Promise<RecordTarget | null> {
   const sources = await desktopCapturer.getSources({ types: ['screen'] })
   const source = sourceForDisplay(sources, display)
-  return source ? { sourceId: source.id } : null
+  return source ? { sourceId: source.id, sourceName: source.name } : null
 }
 
 /** 확정된 대상(sourceId+crop)으로 숨은 recorder 렌더러를 띄워 녹화 시작 */
@@ -140,6 +150,16 @@ function startWithTarget(target: RecordTarget): void {
   recorderWin = new BrowserWindow({
     show: false,
     webPreferences: { preload: preloadPath, sandbox: false }
+  })
+  const captureSession = recorderWin.webContents.session
+  captureSession.setDisplayMediaRequestHandler((_request, callback) => {
+    callback({
+      video: { id: target.sourceId, name: target.sourceName },
+      audio: 'loopback'
+    })
+  })
+  recorderWin.once('closed', () => {
+    captureSession.setDisplayMediaRequestHandler(null)
   })
   const payload: RecordStartPayload = {
     sourceId: target.sourceId,
@@ -212,7 +232,7 @@ export async function startFrameRegionRecording(absRect: Rect): Promise<void> {
   }
   crop.width = Math.max(2, Math.min(crop.width, size.width - crop.x)) & ~1
   crop.height = Math.max(2, Math.min(crop.height, size.height - crop.y)) & ~1
-  startWithTarget({ sourceId: source.id, crop })
+  startWithTarget({ sourceId: source.id, sourceName: source.name, crop })
 }
 
 /** 외부(프레임 윈도우 등)에서 녹화를 정지시킨다 */
@@ -243,7 +263,7 @@ function convert(
     const safeFps = Math.max(5, Math.min(60, Math.round(fps) || 30))
     const args =
       format === 'mp4'
-        ? ['-y', '-i', input, '-vf', `fps=${safeFps}`, '-r', String(safeFps), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', output]
+        ? ['-y', '-i', input, '-vf', `fps=${safeFps}`, '-r', String(safeFps), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', output]
         : ['-y', '-i', input, '-vf', 'fps=12,scale=720:-1:flags=lanczos', output]
     const ps = spawn(ffmpegPath, args)
     ps.on('error', reject)

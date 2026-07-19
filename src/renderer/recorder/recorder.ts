@@ -29,32 +29,35 @@ async function buildCroppedStream(source: MediaStream, crop: Rect, fps: number):
   }
   draw()
 
-  return canvas.captureStream(fps)
+  const cropped = canvas.captureStream(fps)
+  source.getAudioTracks().forEach((track) => cropped.addTrack(track))
+  return cropped
 }
 
-window.api.recorder.onStart(async ({ sourceId, fps, crop }: RecordStartPayload) => {
+window.api.recorder.onStart(async ({ fps, crop }: RecordStartPayload) => {
   try {
     stopRequested = false
     chunks = []
-    // Electron 데스크탑 캡쳐 제약 (표준 타입에 없어 any 캐스팅)
-    const constraints = {
-      audio: false,
+    // 메인 프로세스가 선택한 화면/창과 Windows 시스템 오디오(loopback)를 허용한다.
+    const source = await navigator.mediaDevices.getDisplayMedia({
+      audio: true,
       video: {
-        mandatory: {
-          chromeMediaSource: 'desktop',
-          chromeMediaSourceId: sourceId,
-          maxFrameRate: fps
-        }
+        frameRate: { ideal: fps, max: fps }
       }
-    } as unknown as MediaStreamConstraints
+    })
+    if (source.getAudioTracks().length === 0) {
+      source.getTracks().forEach((track) => track.stop())
+      throw new Error('Windows 시스템 오디오 트랙을 가져오지 못했습니다.')
+    }
 
-    const source = await navigator.mediaDevices.getUserMedia(constraints)
     // 영역 녹화면 canvas 로 crop, 아니면 원본 스트림 그대로
     stream = crop ? await buildCroppedStream(source, crop, fps) : source
 
-    const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-      ? 'video/webm;codecs=vp9'
-      : 'video/webm'
+    const mime = [
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp8,opus',
+      'video/webm'
+    ].find((candidate) => MediaRecorder.isTypeSupported(candidate)) ?? 'video/webm'
     recorder = new MediaRecorder(stream, { mimeType: mime })
     recorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) chunks.push(e.data)

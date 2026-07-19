@@ -78,7 +78,7 @@ app.whenReady().then(async () => {
 
   // 녹화 자가 테스트: 시작 → 2초 후 정지 → 저장/변환 확인
   if (process.env.RECORD_SELFTEST) {
-    toggleRecording()
+    toggleRecording(process.env.RECORD_SELFTEST === 'region' ? 'region' : 'fullscreen')
     setTimeout(() => toggleRecording(), 2500)
   }
 
