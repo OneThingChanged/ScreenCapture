@@ -13,6 +13,7 @@ import ffmpegStatic from 'ffmpeg-static'
 import {
   IPC,
   type RecordStartPayload,
+  type RecordQuality,
   type RecordMode,
   type Rect,
   type OverlaySource,
@@ -37,6 +38,7 @@ import { sourceForDisplay } from './displays'
 
 let recorderWin: BrowserWindow | null = null
 let recording = false
+let activeRecordQuality: RecordQuality = 'balanced'
 const stateListeners: ((recording: boolean) => void)[] = []
 
 export function setRecorderStateListener(cb: (r: boolean) => void): void {
@@ -172,9 +174,16 @@ function startWithTarget(target: RecordTarget): void {
     captureSession.setPermissionCheckHandler(null)
     captureSession.setPermissionRequestHandler(null)
   })
+  const settings = getSettings()
+  const selftestQuality = process.env.RECORD_SELFTEST_QUALITY
+  const quality = ['compact', 'balanced', 'high', 'maximum'].includes(selftestQuality ?? '')
+    ? selftestQuality as RecordQuality
+    : settings.recordQuality
+  activeRecordQuality = quality
   const payload: RecordStartPayload = {
     sourceId: target.sourceId,
-    fps: getSettings().recordFps,
+    fps: settings.recordFps,
+    quality,
     crop: target.crop
   }
   recorderWin.webContents.on('did-finish-load', () => {
@@ -267,15 +276,28 @@ function convert(
   input: string,
   output: string,
   format: 'mp4' | 'gif',
-  fps: number
+  fps: number,
+  quality: RecordQuality
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     if (!ffmpegPath) return reject(new Error('ffmpeg 없음'))
     const safeFps = Math.max(5, Math.min(60, Math.round(fps) || 30))
+    const crf: Record<RecordQuality, number> = {
+      compact: 30,
+      balanced: 23,
+      high: 18,
+      maximum: 14
+    }
+    const gifFilter: Record<RecordQuality, string> = {
+      compact: 'fps=10,scale=480:-1:flags=lanczos',
+      balanced: 'fps=12,scale=720:-1:flags=lanczos',
+      high: 'fps=15,scale=1080:-1:flags=lanczos',
+      maximum: 'fps=20'
+    }
     const args =
       format === 'mp4'
-        ? ['-y', '-i', input, '-vf', `fps=${safeFps}`, '-r', String(safeFps), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', output]
-        : ['-y', '-i', input, '-vf', 'fps=12,scale=720:-1:flags=lanczos', output]
+        ? ['-y', '-i', input, '-vf', `fps=${safeFps}`, '-r', String(safeFps), '-c:v', 'libx264', '-crf', String(crf[quality]), '-preset', 'medium', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', output]
+        : ['-y', '-i', input, '-vf', gifFilter[quality], output]
     const ps = spawn(ffmpegPath, args)
     ps.on('error', reject)
     ps.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg exit ${code}`))))
@@ -286,6 +308,7 @@ function convert(
 export function registerRecorderIpc(): void {
   ipcMain.on(IPC.recordSave, async (_e, buffer: ArrayBuffer) => {
     const settings = getSettings()
+    const recordQuality = activeRecordQuality
     const completedWindow = recorderWin
     setRecording(false)
     completedWindow?.close()
@@ -302,7 +325,7 @@ export function registerRecorderIpc(): void {
       for (const fmt of targets) {
         const out = webmPath.replace(/\.webm$/, `.${fmt}`)
         try {
-          await convert(webmPath, out, fmt, settings.recordFps)
+          await convert(webmPath, out, fmt, settings.recordFps, recordQuality)
           produced.push(out)
         } catch (err) {
           console.error(`[recorder] ${fmt} 변환 실패:`, err)

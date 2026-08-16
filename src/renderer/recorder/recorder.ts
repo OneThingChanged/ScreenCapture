@@ -1,4 +1,4 @@
-import type { RecordStartPayload, Rect } from '../../shared/types'
+import type { RecordQuality, RecordStartPayload, Rect } from '../../shared/types'
 
 let recorder: MediaRecorder | null = null
 let stream: MediaStream | null = null
@@ -94,7 +94,21 @@ async function closeAudioGraph(): Promise<void> {
   audioContext = null
 }
 
-window.api.recorder.onStart(async ({ fps, crop }: RecordStartPayload) => {
+function videoBitrate(mediaStream: MediaStream, fps: number, quality: RecordQuality): number {
+  const settings = mediaStream.getVideoTracks()[0]?.getSettings()
+  const width = settings?.width ?? 1920
+  const height = settings?.height ?? 1080
+  const bitsPerPixel: Record<RecordQuality, number> = {
+    compact: 0.05,
+    balanced: 0.09,
+    high: 0.14,
+    maximum: 0.22
+  }
+  const target = Math.round(width * height * fps * bitsPerPixel[quality])
+  return Math.max(1_000_000, Math.min(60_000_000, target))
+}
+
+window.api.recorder.onStart(async ({ fps, quality, crop }: RecordStartPayload) => {
   let displaySource: MediaStream | null = null
   try {
     stopRequested = false
@@ -124,7 +138,11 @@ window.api.recorder.onStart(async ({ fps, crop }: RecordStartPayload) => {
       'video/webm;codecs=vp8,opus',
       'video/webm'
     ].find((candidate) => MediaRecorder.isTypeSupported(candidate)) ?? 'video/webm'
-    recorder = new MediaRecorder(stream, { mimeType: mime })
+    recorder = new MediaRecorder(stream, {
+      mimeType: mime,
+      videoBitsPerSecond: videoBitrate(stream, fps, quality),
+      audioBitsPerSecond: 192_000
+    })
     recorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) chunks.push(e.data)
     }

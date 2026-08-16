@@ -8,6 +8,7 @@ ScreenCapture is an Electron application with a React renderer and TypeScript ac
 Electron main process
 ├─ Persistent main BrowserWindow
 │  └─ React workspace: Capture / Manage / Edit
+├─ Persistent adjustable region capture/recording frame
 ├─ Region overlay BrowserWindow
 ├─ Window picker BrowserWindow
 ├─ Hidden recording BrowserWindow
@@ -20,7 +21,7 @@ The preload layer exposes a context-isolated API. Renderers do not receive direc
 
 ## Main workspace
 
-`src/renderer/app` owns the persistent tab interface. Navigation changes React state instead of destroying and recreating the application window. Region selection and window selection remain separate transient windows because they must appear above other desktop content.
+`src/renderer/app` owns the persistent tab interface. Navigation changes React state instead of destroying and recreating the application window. Region screenshots and frame-based region recordings share a separate adjustable always-on-top frame. It remains open across repeated captures and is excluded from captured output with content protection. The transparent interior uses forwarded mouse events to pass clicks through to the application underneath, while the toolbar and resize handles temporarily reclaim input. Window selection and direct overlay selection remain separate transient windows because they must appear above other desktop content.
 
 ## Capture flow
 
@@ -28,20 +29,22 @@ The preload layer exposes a context-isolated API. Renderers do not receive direc
 2. The cursor position is sampled immediately and mapped to an Electron `Display`.
 3. The main window is excluded from capture with content protection.
 4. `desktopCapturer` sources are matched by `display_id`, Windows source index, or source order.
-5. Region and window modes open their transient selector.
+5. Region mode opens or focuses the reusable capture/recording frame; window mode opens its transient picker.
 6. The result is saved, copied, and/or sent to the editor according to the stored compatibility setting.
 
 The display mapping logic is centralized in `src/main/displays.ts` so screenshot and recording paths use the same fallback behavior.
 
 ## Recording flow
 
-Recording resolves a screen or window source in the main process, then grants that source to a hidden recording renderer through Electron's display-media request handler. A dedicated non-persistent Electron session scopes media permission to the recorder. On Windows, the handler supplies a loopback stream for system output audio, while `getUserMedia` supplies the default microphone. The renderer combines both inputs through a Web Audio graph and dynamics compressor into one track, then records WebM video with Opus audio through `MediaRecorder`. Region recording crops only the video through a canvas stream before attaching the mixed audio, so cropping does not discard sound. The main process stores the WebM buffer and invokes the bundled ffmpeg binary for MP4 (H.264/AAC) or GIF output.
+Recording resolves a screen or window source in the main process, then grants that source to a hidden recording renderer through Electron's display-media request handler. A dedicated non-persistent Electron session scopes media permission to the recorder. On Windows, the handler supplies a loopback stream for system output audio, while `getUserMedia` supplies the default microphone. The renderer combines both inputs through a Web Audio graph and dynamics compressor into one track, then records WebM video with Opus audio through `MediaRecorder`. The recording-quality preset calculates a resolution/FPS-aware WebM bitrate and selects the ffmpeg H.264 CRF used for MP4 conversion. Region recording crops only the video through a canvas stream before attaching the mixed audio, so cropping does not discard sound. The main process stores the WebM buffer and invokes the bundled ffmpeg binary for MP4 (H.264/AAC) or GIF output.
 
 ## Media management
 
-The main process owns filesystem access. A restricted `sc-media://` protocol serves approved local media to the renderer, enabling in-app video playback without exposing arbitrary filesystem URLs. Images can also be returned as data URLs for editing.
+The main process owns filesystem access. A restricted `sc-media://` protocol serves approved local media to the renderer without exposing arbitrary filesystem URLs. Video responses implement HTTP-style byte ranges with `206 Partial Content`, allowing native player seeking. ffmpeg supplies the source FPS used by management-tab frame stepping. Images can also be returned as data URLs for editing.
 
 Native images are converted through PNG buffers rather than Electron's logical-DPI data URL helper. This preserves physical pixels when high-DPI screenshots and imported images cross the main/renderer boundary.
+
+Capture-quality presets resize the captured physical-pixel bitmap once, before saving, clipboard copy, and editor delivery, so every downstream result uses the same selected resolution.
 
 ## Editing and undo history
 

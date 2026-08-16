@@ -7,6 +7,12 @@ export type AfterCapture = 'editor' | 'save' | 'both'
 /** 이미지 포맷 */
 export type ImageFormat = 'png' | 'jpg'
 
+/** 캡처 이미지 해상도 프리셋 */
+export type CaptureQuality = 'compact' | 'balanced' | 'high' | 'original'
+
+/** 녹화 비트레이트/인코딩 품질 프리셋 */
+export type RecordQuality = 'compact' | 'balanced' | 'high' | 'maximum'
+
 /** 녹화 포맷 */
 export type RecordFormat = 'webm' | 'mp4' | 'gif'
 
@@ -22,6 +28,7 @@ export interface Rect {
 export interface AppSettings {
   saveDir: string
   imageFormat: ImageFormat
+  captureQuality: CaptureQuality
   jpgQuality: number
   afterCapture: AfterCapture
   copyToClipboard: boolean
@@ -36,6 +43,7 @@ export interface AppSettings {
   /** 원본 WebM 파일 유지 */
   keepWebm: boolean
   recordFps: number
+  recordQuality: RecordQuality
   shortcuts: {
     region: string
     window: string
@@ -89,6 +97,7 @@ export type RecordMode = 'region' | 'window' | 'fullscreen'
 export interface RecordStartPayload {
   sourceId: string
   fps: number
+  quality: RecordQuality
   /** 영역 녹화 시 잘라낼 영역(물리 픽셀). 없으면 전체 스트림 녹화 */
   crop?: Rect
 }
@@ -130,6 +139,11 @@ export interface MediaFile {
   extension: string
   size: number
   modifiedAt: number
+}
+
+export interface VideoPreviewInfo {
+  fps: number
+  duration: number
 }
 
 export interface EditorImageSource {
@@ -217,6 +231,7 @@ export const IPC = {
   captureCompleted: 'capture:completed',
   mediaList: 'media:list',
   mediaPreview: 'media:preview',
+  mediaVideoInfo: 'media:videoInfo',
   mediaOpenFolder: 'media:openFolder',
   mediaContextMenu: 'media:contextMenu',
   mediaRename: 'media:rename',
@@ -238,6 +253,7 @@ export const IPC = {
   recordSave: 'record:save',
   frameInit: 'frame:init',
   frameSetBounds: 'frame:setBounds',
+  frameCapture: 'frame:capture',
   frameStart: 'frame:start',
   frameStop: 'frame:stop',
   frameClose: 'frame:close',

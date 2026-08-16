@@ -18,6 +18,7 @@ import {
   type ShellNavigation,
   type CaptureCompleted,
   type MediaFile,
+  type VideoPreviewInfo,
   type EditorImageSource
 } from '../shared/types'
 
@@ -44,6 +45,8 @@ const api = {
   media: {
     list: (): Promise<MediaFile[]> => ipcRenderer.invoke(IPC.mediaList),
     preview: (path: string): Promise<string | null> => ipcRenderer.invoke(IPC.mediaPreview, path),
+    videoInfo: (path: string): Promise<VideoPreviewInfo> =>
+      ipcRenderer.invoke(IPC.mediaVideoInfo, path),
     url: (path: string): string => `sc-media://file/${encodeURIComponent(path)}`,
     contextMenu: (path: string): void => ipcRenderer.send(IPC.mediaContextMenu, path),
     openFolder: (path?: string): Promise<void> => ipcRenderer.invoke(IPC.mediaOpenFolder, path),
@@ -53,6 +56,8 @@ const api = {
   },
   frame: {
     setBounds: (bounds: Rect): void => ipcRenderer.send(IPC.frameSetBounds, bounds),
+    capture: (contentRect: Rect): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.frameCapture, contentRect),
     start: (contentRect: Rect): void => ipcRenderer.send(IPC.frameStart, contentRect),
     stop: (): void => ipcRenderer.send(IPC.frameStop),
     close: (): void => ipcRenderer.send(IPC.frameClose),

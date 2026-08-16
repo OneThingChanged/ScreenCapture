@@ -151,7 +151,7 @@ export function openSettingsWindow(): BrowserWindow {
 
 let frameWin: BrowserWindow | null = null
 
-export function openRecordFrameWindow(): BrowserWindow {
+export function openRegionFrameWindow(): BrowserWindow {
   if (frameWin && !frameWin.isDestroyed()) {
     frameWin.show()
     frameWin.focus()
@@ -175,10 +175,12 @@ export function openRecordFrameWindow(): BrowserWindow {
     resizable: false,
     hasShadow: false,
     skipTaskbar: false,
-    title: '녹화 영역',
+    title: '영역 캡처 및 녹화',
     alwaysOnTop: true,
     webPreferences: { preload: preloadPath, sandbox: false }
   })
+  // 프레임은 화면에 계속 보이되 캡처·녹화 결과에는 포함하지 않는다.
+  frameWin.setContentProtection(true)
   frameWin.setAlwaysOnTop(true, 'screen-saver')
   loadRoute(frameWin, 'frame')
   frameWin.on('closed', () => { frameWin = null })

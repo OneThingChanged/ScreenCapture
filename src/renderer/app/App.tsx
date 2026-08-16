@@ -25,7 +25,8 @@ import type {
   CaptureCompleted,
   EditTool,
   MediaFile,
-  ShellNavigation
+  ShellNavigation,
+  VideoPreviewInfo
 } from '../../shared/types'
 import { FabricEditor } from './FabricEditor'
 import { FramesEditor } from './FramesEditor'
@@ -80,6 +81,14 @@ function CapturePanel({ settings, recording, onRefreshSettings }: {
     await window.api.settings.set({ imageFormat })
     onRefreshSettings()
   }
+  const updateCaptureQuality = async (captureQuality: AppSettings['captureQuality']): Promise<void> => {
+    await window.api.settings.set({ captureQuality })
+    onRefreshSettings()
+  }
+  const updateRecordQuality = async (recordQuality: AppSettings['recordQuality']): Promise<void> => {
+    await window.api.settings.set({ recordQuality })
+    onRefreshSettings()
+  }
   return <section className="panel capture-panel">
     <div className="capture-layout">
       <main className="capture-stage">
@@ -88,7 +97,7 @@ function CapturePanel({ settings, recording, onRefreshSettings }: {
           <div><span className="eyebrow">SCREEN CAPTURE</span><h1>무엇을 캡처할까요?</h1><p>주 창은 그대로 유지되며 캡처 결과만 편집 탭으로 전달됩니다.</p></div>
         </div>
         <div className="capture-cards">
-          <button onClick={() => capture('region')}><Crop24Regular /><strong>영역 캡처</strong><span>드래그로 원하는 부분만 선택</span><kbd>{fmtShortcut(settings?.shortcuts.region ?? 'Ctrl+Shift+1')}</kbd></button>
+          <button onClick={() => capture('region')}><Crop24Regular /><strong>영역 캡처</strong><span>프레임을 조절해 원하는 영역을 반복 캡처</span><kbd>{fmtShortcut(settings?.shortcuts.region ?? 'Ctrl+Shift+1')}</kbd></button>
           <button onClick={() => capture('window')}><Window24Regular /><strong>창 캡처</strong><span>열려 있는 창을 골라 캡처</span><kbd>{fmtShortcut(settings?.shortcuts.window ?? 'Ctrl+Shift+2')}</kbd></button>
           <button onClick={() => capture('fullscreen')}><Desktop24Regular /><strong>전체 화면</strong><span>현재 모니터를 즉시 캡처</span><kbd>{fmtShortcut(settings?.shortcuts.fullscreen ?? 'Ctrl+Shift+3')}</kbd></button>
         </div>
@@ -106,6 +115,8 @@ function CapturePanel({ settings, recording, onRefreshSettings }: {
       <aside className="properties">
         <div className="properties-title">빠른 설정</div>
         <div className="property-group"><label>저장 형식</label><div className="segmented"><button className={settings?.imageFormat === 'png' ? 'is-active' : ''} onClick={() => void updateFormat('png')}>PNG</button><button className={settings?.imageFormat === 'jpg' ? 'is-active' : ''} onClick={() => void updateFormat('jpg')}>JPG</button></div></div>
+        <div className="property-group"><label>캡처 화질</label><select className="quick-select" value={settings?.captureQuality ?? 'original'} onChange={(event) => void updateCaptureQuality(event.target.value as AppSettings['captureQuality'])}><option value="compact">용량 절약 · 50%</option><option value="balanced">균형 · 75%</option><option value="high">고화질 · 90%</option><option value="original">원본 · 100%</option></select></div>
+        <div className="property-group"><label>녹화 화질</label><select className="quick-select" value={settings?.recordQuality ?? 'balanced'} onChange={(event) => void updateRecordQuality(event.target.value as AppSettings['recordQuality'])}><option value="compact">용량 절약</option><option value="balanced">균형</option><option value="high">고화질</option><option value="maximum">최고화질</option></select></div>
         <div className="property-group"><label>저장 위치</label><div className="path-field">{settings?.saveDir ?? '불러오는 중…'}</div><button className="secondary-button" onClick={() => void window.api.media.openFolder()}><FolderOpen24Regular />폴더 열기</button></div>
       </aside>
     </div>
@@ -117,6 +128,7 @@ function ManagePanel({ refreshKey, onOpen }: { refreshKey: number; onOpen: (file
   const [selectedPath, setSelectedPath] = useState<string>('')
   const [preview, setPreview] = useState<string | null>(null)
   const [videoError, setVideoError] = useState(false)
+  const [videoInfo, setVideoInfo] = useState<VideoPreviewInfo | null>(null)
   const [query, setQuery] = useState('')
   const [renameTarget, setRenameTarget] = useState<MediaFile | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -124,6 +136,7 @@ function ManagePanel({ refreshKey, onOpen }: { refreshKey: number; onOpen: (file
   const [renaming, setRenaming] = useState(false)
   const rowRefs = useRef(new Map<string, HTMLButtonElement>())
   const renameInputRef = useRef<HTMLInputElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
   const refresh = useCallback(async () => {
     const next = await window.api.media.list()
     setFiles(next)
@@ -133,9 +146,18 @@ function ManagePanel({ refreshKey, onOpen }: { refreshKey: number; onOpen: (file
   const visible = files.filter((f) => f.name.toLowerCase().includes(query.toLowerCase()))
   const selected = files.find((f) => f.path === selectedPath) ?? null
   useEffect(() => {
+    let active = true
     setPreview(null)
     setVideoError(false)
-    if (selected?.kind === 'image') void window.api.media.preview(selected.path).then(setPreview)
+    setVideoInfo(null)
+    if (selected?.kind === 'image') {
+      void window.api.media.preview(selected.path).then((value) => { if (active) setPreview(value) })
+    } else if (selected?.kind === 'video') {
+      void window.api.media.videoInfo(selected.path)
+        .then((value) => { if (active) setVideoInfo(value) })
+        .catch(() => { if (active) setVideoInfo({ fps: 30, duration: 0 }) })
+    }
+    return () => { active = false }
   }, [selected?.path, selected?.kind])
   const selectVisibleFile = useCallback((index: number): void => {
     const file = visible[index]
@@ -151,7 +173,24 @@ function ManagePanel({ refreshKey, onOpen }: { refreshKey: number; onOpen: (file
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || !visible.length) return
       const target = event.target as HTMLElement | null
-      if (target?.matches('input, textarea, select, video, [contenteditable="true"]') || target?.closest('.settings-drawer')) return
+      if (target?.matches('input, textarea, select, [contenteditable="true"]') || target?.closest('.settings-drawer')) return
+      const frameDirection = event.key === 'ArrowLeft' || event.code === 'Comma'
+        ? -1
+        : event.key === 'ArrowRight' || event.code === 'Period'
+          ? 1
+          : 0
+      if (frameDirection && selected?.kind === 'video' && videoRef.current) {
+        const video = videoRef.current
+        if (video.readyState === HTMLMediaElement.HAVE_NOTHING || !Number.isFinite(video.duration)) return
+        const frameDuration = 1 / Math.max(1, videoInfo?.fps ?? 30)
+        const end = Number.isFinite(video.duration) ? Math.max(0, video.duration - 0.001) : Number.MAX_SAFE_INTEGER
+        event.preventDefault()
+        event.stopPropagation()
+        video.pause()
+        video.currentTime = Math.max(0, Math.min(end, video.currentTime + frameDirection * frameDuration))
+        return
+      }
+      if (target?.matches('video')) return
       const current = visible.findIndex((file) => file.path === selectedPath)
       let next = current
       if (event.key === 'ArrowDown') next = current < 0 ? 0 : Math.min(current + 1, visible.length - 1)
@@ -162,9 +201,9 @@ function ManagePanel({ refreshKey, onOpen }: { refreshKey: number; onOpen: (file
       event.preventDefault()
       selectVisibleFile(next)
     }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [selectedPath, selectVisibleFile, visible])
+    document.addEventListener('keydown', handleKeyDown, true)
+    return () => document.removeEventListener('keydown', handleKeyDown, true)
+  }, [selected, selectedPath, selectVisibleFile, videoInfo?.fps, visible])
   useEffect(() => {
     if (!renameTarget) return
     window.requestAnimationFrame(() => {
@@ -233,7 +272,7 @@ function ManagePanel({ refreshKey, onOpen }: { refreshKey: number; onOpen: (file
         <div className="browser-footer">총 {visible.length}개 · {fmtSize(visible.reduce((sum, file) => sum + file.size, 0))}</div>
       </div>
       <div className="media-preview">
-        {selected ? <><div className="preview-heading"><div><strong>{selected.name}</strong><span>{selected.kind === 'image' ? '이미지' : '동영상'} · {fmtSize(selected.size)}</span></div><button className="secondary-button" onClick={() => onOpen(selected, preview ?? undefined)}><Edit24Regular />{selected.kind === 'image' ? '편집에서 열기' : '프레임 편집'}</button></div><div className="preview-canvas">{selected.kind === 'image' ? (preview ? <img src={preview} alt={selected.name} /> : <div className="video-placeholder"><Image24Regular /><strong>이미지 불러오는 중…</strong></div>) : videoError ? <div className="video-placeholder"><VideoClip24Regular /><strong>이 영상은 내장 플레이어로 재생할 수 없습니다</strong><span>프레임 편집 또는 파일 위치 열기를 이용하세요.</span></div> : <video key={selected.path} src={window.api.media.url(selected.path)} controls preload="metadata" onError={() => setVideoError(true)} />}</div><div className="preview-footer"><span>{selected.path}</span><button onClick={() => void window.api.media.openFolder(selected.path)}>파일 위치 열기</button></div></> : <div className="preview-empty"><Image24Regular /><span>미리 볼 파일을 선택하세요.</span></div>}
+        {selected ? <><div className="preview-heading"><div><strong>{selected.name}</strong><span>{selected.kind === 'image' ? '이미지' : `동영상${videoInfo ? ` · ${videoInfo.fps.toFixed(videoInfo.fps % 1 ? 2 : 0)} FPS` : ''}`} · {fmtSize(selected.size)}</span></div><button className="secondary-button" onClick={() => onOpen(selected, preview ?? undefined)}><Edit24Regular />{selected.kind === 'image' ? '편집에서 열기' : '프레임 편집'}</button></div><div className="preview-canvas">{selected.kind === 'image' ? (preview ? <img src={preview} alt={selected.name} /> : <div className="video-placeholder"><Image24Regular /><strong>이미지 불러오는 중…</strong></div>) : videoError ? <div className="video-placeholder"><VideoClip24Regular /><strong>이 영상은 내장 플레이어로 재생할 수 없습니다</strong><span>프레임 편집 또는 파일 위치 열기를 이용하세요.</span></div> : <video ref={videoRef} key={selected.path} src={window.api.media.url(selected.path)} controls preload="metadata" onError={() => setVideoError(true)} />}</div><div className="preview-footer"><span className="preview-path">{selected.path}</span>{selected.kind === 'video' && <span className="video-key-help">←/→ 또는 ,/. · 프레임 이동</span>}<button onClick={() => void window.api.media.openFolder(selected.path)}>파일 위치 열기</button></div></> : <div className="preview-empty"><Image24Regular /><span>미리 볼 파일을 선택하세요.</span></div>}
       </div>
     </div>
     {renameTarget && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeRename() }}>

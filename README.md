@@ -7,13 +7,14 @@ ScreenCapture is a Windows desktop app for screenshots, screen recording, media 
 ## Features
 
 - Persistent dark-themed workspace with Capture, Manage, and Edit tabs
-- Region, window, and full-screen screenshots
+- Region, window, and full-screen screenshots, including a persistent adjustable frame for repeated region captures
 - Region, window, and full-screen recording with mixed Windows system audio and default microphone input to MP4
+- Four capture-resolution presets and four recording bitrate/encoding-quality presets
 - Six configurable global shortcuts, including modifier-key combinations
 - High-DPI image editor with accurate cursor-aligned annotations, object selection, resizing, and `Ctrl+Z` undo
 - Image annotation tools: pen, arrow, rectangle, ellipse, text, mosaic, color, and stroke width
 - Image import, clipboard copy, and Save As support
-- Media library with image previews, video playback, scrolling, search, rename, delete, and Reveal in File Explorer
+- Media library with image previews, seekable video playback, frame-by-frame keyboard stepping, scrolling, search, rename, delete, and Reveal in File Explorer
 - Frame editor with keyboard navigation, deleted-frame `Ctrl+Z` undo, and GIF/MP4 export
 - Video compression
 - Optional tray mode: keep the app running in the tray or quit immediately when the main window closes
@@ -69,7 +70,7 @@ src/
   main/          Electron main process, capture, recording, tray, shortcuts, IPC, storage
   preload/       Context-isolated renderer API
   renderer/app/  React workspace for Capture, Manage, and Edit
-  renderer/      Capture overlays and the hidden recording renderer
+  renderer/      Capture/recording frame, selectors, editors, and the hidden recording renderer
   shared/        Shared IPC and data types
 resources/       Application icons and icon generation scripts
 scripts/         Packaging scripts

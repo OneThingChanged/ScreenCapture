@@ -3,7 +3,29 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname, extname, join } from 'node:path'
 import { getSettings } from './settings'
-import type { ImageFormat } from '../shared/types'
+import type { CaptureQuality, ImageFormat } from '../shared/types'
+
+const captureScale: Record<CaptureQuality, number> = {
+  compact: 0.5,
+  balanced: 0.75,
+  high: 0.9,
+  original: 1
+}
+
+/** 캡처 화질 프리셋에 맞춰 이미지의 물리 픽셀 해상도를 조절한다. */
+export function applyCaptureQuality(
+  image: NativeImage,
+  quality: CaptureQuality
+): NativeImage {
+  const scale = captureScale[quality] ?? 1
+  if (scale >= 1) return image
+  const size = image.getSize()
+  return image.resize({
+    width: Math.max(1, Math.round(size.width * scale)),
+    height: Math.max(1, Math.round(size.height * scale)),
+    quality: 'best'
+  })
+}
 
 /** YYYY-MM-DD_HH-mm-ss 형식 타임스탬프 */
 function timestamp(): string {

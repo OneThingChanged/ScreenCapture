@@ -2,12 +2,15 @@ import type { Rect } from '../../shared/types'
 
 const BAR_H = 36
 const sizeEl = document.getElementById('size') as HTMLSpanElement
+const captureBtn = document.getElementById('captureBtn') as HTMLButtonElement
+const captureLabel = document.getElementById('captureLabel') as HTMLSpanElement
 const recBtn = document.getElementById('recBtn') as HTMLButtonElement
 const recLabel = document.getElementById('recLabel') as HTMLSpanElement
 const closeBtn = document.getElementById('closeBtn') as HTMLButtonElement
 const inner = document.getElementById('inner') as HTMLElement
 
 let recording = false
+let capturing = false
 
 /** 실제 녹화될 영역(테두리 안쪽)의 화면 절대 좌표(DIP) */
 function captureRect(): Rect {
@@ -43,7 +46,7 @@ const MIN_H = BAR_H + 80
 
 document.querySelectorAll<HTMLElement>('.h').forEach((handle) => {
   handle.addEventListener('pointerdown', (e) => {
-    if (recording) return
+    if (recording || capturing) return
     e.preventDefault()
     handle.setPointerCapture(e.pointerId)
     drag = {
@@ -88,12 +91,39 @@ window.addEventListener('pointermove', (e) => {
   window.api.frame.setBounds({ x, y, width: w, height: h })
 })
 
-window.addEventListener('pointerup', () => {
+window.addEventListener('pointerup', (e) => {
   drag = null
+  updateMouseMode(e.clientX, e.clientY)
 })
 
-// --- 녹화 시작/정지 ---
+// --- 캡처 및 녹화 시작/정지 ---
+captureBtn.addEventListener('click', async () => {
+  if (recording || capturing) return
+  capturing = true
+  captureBtn.disabled = true
+  recBtn.disabled = true
+  document.body.classList.add('capturing')
+  captureLabel.textContent = '캡처 중…'
+  try {
+    const captured = await window.api.frame.capture(captureRect())
+    document.body.dataset.lastCapture = captured ? 'success' : 'failed'
+    captureLabel.textContent = captured ? '완료' : '실패'
+  } catch {
+    document.body.dataset.lastCapture = 'failed'
+    captureLabel.textContent = '실패'
+  } finally {
+    window.setTimeout(() => {
+      capturing = false
+      captureBtn.disabled = recording
+      recBtn.disabled = false
+      document.body.classList.remove('capturing')
+      captureLabel.textContent = '캡처'
+    }, 600)
+  }
+})
+
 recBtn.addEventListener('click', () => {
+  if (capturing) return
   if (recording) {
     window.api.frame.stop()
   } else {
@@ -105,23 +135,37 @@ closeBtn.addEventListener('click', () => {
   window.api.frame.close()
 })
 
-// --- 녹화 중 클릭 통과: 컨트롤 바 위에서만 클릭 가능, 영역 안은 아래 앱으로 통과 ---
-// (setIgnoreMouseEvents forward 모드라 ignore 중에도 mousemove 는 전달됨)
-let overBar = false
+// --- 클릭 통과: 안쪽은 아래 창을 조작하고 바/리사이즈 핸들만 프레임이 받는다 ---
+// setIgnoreMouseEvents({ forward: true })라 클릭 통과 중에도 mousemove는 전달된다.
+let mouseIgnored: boolean | null = null
+let lastMousePoint: { x: number; y: number } | null = null
+
+function setMouseIgnored(ignore: boolean): void {
+  if (mouseIgnored === ignore) return
+  mouseIgnored = ignore
+  document.body.dataset.mouseMode = ignore ? 'passthrough' : 'interactive'
+  window.api.frame.setIgnoreMouse(ignore)
+}
+
+function updateMouseMode(x: number, y: number): void {
+  lastMousePoint = { x, y }
+  const target = document.elementFromPoint(x, y)
+  const overControls = Boolean(target?.closest('#bar, .h'))
+  setMouseIgnored(!drag && !overControls)
+}
+
 window.addEventListener('mousemove', (e) => {
-  if (!recording) return
-  const onBar = e.clientY <= BAR_H
-  if (onBar !== overBar) {
-    overBar = onBar
-    window.api.frame.setIgnoreMouse(!onBar)
-  }
+  updateMouseMode(e.clientX, e.clientY)
 })
+
+// 창이 커서 아래에 생성된 직후 클릭해도 안쪽 입력을 가로채지 않는다.
+setMouseIgnored(true)
 
 window.api.frame.onRecordState((isRec) => {
   recording = isRec
+  captureBtn.disabled = isRec || capturing
   document.body.classList.toggle('recording', isRec)
   recLabel.textContent = isRec ? '정지' : '녹화'
-  overBar = false
-  // 녹화 중에는 기본적으로 클릭 통과(true), 정지 후엔 다시 조작 가능(false)
-  window.api.frame.setIgnoreMouse(isRec)
+  if (lastMousePoint) updateMouseMode(lastMousePoint.x, lastMousePoint.y)
+  else setMouseIgnored(true)
 })

@@ -6,6 +6,7 @@ import type { AppSettings } from '../shared/types'
 const defaults: AppSettings = {
   saveDir: join(app.getPath('pictures'), 'ScreenCapture'),
   imageFormat: 'png',
+  captureQuality: 'original',
   jpgQuality: 90,
   afterCapture: 'both',
   copyToClipboard: true,
@@ -15,6 +16,7 @@ const defaults: AppSettings = {
   exportGif: false,
   keepWebm: false,
   recordFps: 30,
+  recordQuality: 'balanced',
   shortcuts: {
     region: 'CommandOrControl+Shift+1',
     window: 'CommandOrControl+Shift+2',
@@ -33,6 +35,8 @@ export function getSettings(): AppSettings {
   const shortcuts = current.shortcuts
   return {
     ...current,
+    captureQuality: current.captureQuality ?? defaults.captureQuality,
+    recordQuality: current.recordQuality ?? defaults.recordQuality,
     closeToTray: current.closeToTray ?? defaults.closeToTray,
     shortcuts: {
       ...defaults.shortcuts,

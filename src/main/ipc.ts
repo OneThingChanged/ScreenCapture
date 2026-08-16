@@ -10,7 +10,7 @@ import {
   saveImage,
   saveImageToPath
 } from './storage'
-import { startCapture } from './capture'
+import { captureFrameRegion, startCapture } from './capture'
 import {
   toggleRecording,
   isRecording,
@@ -20,7 +20,7 @@ import {
 import {
   openSettingsWindow,
   getMainWindow,
-  openRecordFrameWindow,
+  openRegionFrameWindow,
   getFrameWindow,
   openFramesWindow,
   openCompressWindow,
@@ -50,7 +50,7 @@ async function handleMainAction(action: MainAction): Promise<void> {
       stopRecordingExternal()
       return
     }
-    openRecordFrameWindow()
+    openRegionFrameWindow()
     return
   }
 
@@ -163,6 +163,12 @@ export function registerIpc(): void {
       width: Math.round(bounds.width),
       height: Math.round(bounds.height)
     })
+  })
+
+  ipcMain.handle(IPC.frameCapture, async (e, contentRect: Rect) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (!win || win !== getFrameWindow() || isRecording()) return false
+    return captureFrameRegion(contentRect)
   })
 
   ipcMain.on(IPC.frameStart, (_e, contentRect: Rect) => {

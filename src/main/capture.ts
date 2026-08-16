@@ -5,16 +5,25 @@ import {
   type Display,
   type NativeImage
 } from 'electron'
-import { saveImage, copyImageToClipboard, imageToDataUrl } from './storage'
+import {
+  saveImage,
+  saveImageToPath,
+  applyCaptureQuality,
+  copyImageToClipboard,
+  imageToDataUrl
+} from './storage'
 import { getSettings } from './settings'
 import {
   getMainWindow,
+  getFrameWindow,
   notifyCaptureCompleted,
+  openRegionFrameWindow,
   openOverlayWindow,
   openPickerWindow
 } from './windows'
 import type {
   CaptureMode,
+  CaptureQuality,
   OverlaySource,
   Rect,
   WindowSource
@@ -113,6 +122,61 @@ export async function captureRegion(target?: Display): Promise<NativeImage | nul
   return fullImage.crop(crop)
 }
 
+/** 유지형 영역 프레임의 안쪽 절대 좌표를 현재 화면에서 캡처한다. */
+export async function captureFrameRegion(absRect: Rect): Promise<boolean> {
+  if (absRect.width < 1 || absRect.height < 1) return false
+
+  const display = screen.getDisplayMatching(absRect)
+  const displayRight = display.bounds.x + display.bounds.width
+  const displayBottom = display.bounds.y + display.bounds.height
+  const left = Math.max(absRect.x, display.bounds.x)
+  const top = Math.max(absRect.y, display.bounds.y)
+  const right = Math.min(absRect.x + absRect.width, displayRight)
+  const bottom = Math.min(absRect.y + absRect.height, displayBottom)
+  if (right <= left || bottom <= top) return false
+
+  const main = getMainWindow()
+  const frame = getFrameWindow()
+  main?.setContentProtection(true)
+  frame?.setContentProtection(true)
+  // Windows가 WDA_EXCLUDEFROMCAPTURE를 적용할 시간을 준다.
+  await new Promise((resolve) => setTimeout(resolve, 60))
+
+  try {
+    const sources = await grabScreenSources()
+    const match = sources.find((source) => source.display.id === display.id)
+    if (!match) return false
+
+    const sf = display.scaleFactor
+    const size = match.image.getSize()
+    const crop: Rect = {
+      x: Math.max(0, Math.round((left - display.bounds.x) * sf)),
+      y: Math.max(0, Math.round((top - display.bounds.y) * sf)),
+      width: Math.max(1, Math.round((right - left) * sf)),
+      height: Math.max(1, Math.round((bottom - top) * sf))
+    }
+    crop.x = Math.min(crop.x, size.width - 1)
+    crop.y = Math.min(crop.y, size.height - 1)
+    crop.width = Math.min(crop.width, size.width - crop.x)
+    crop.height = Math.min(crop.height, size.height - crop.y)
+
+    const image = match.image.crop(crop)
+    const selftestOutput = process.env.FRAME_CAPTURE_SELFTEST_OUTPUT
+    if (process.env.FRAME_CAPTURE_SELFTEST && selftestOutput) {
+      const selftestQuality = process.env.FRAME_CAPTURE_SELFTEST_QUALITY as CaptureQuality | undefined
+      await saveImageToPath(
+        applyCaptureQuality(image, selftestQuality ?? getSettings().captureQuality),
+        selftestOutput
+      )
+    } else {
+      await handleCapturedImage(image, 'region')
+    }
+    return true
+  } finally {
+    if (main && !main.isDestroyed()) main.setContentProtection(false)
+  }
+}
+
 /** 열린 창 목록을 picker 로 보여주고 선택된 창을 캡쳐 */
 export async function captureWindow(): Promise<NativeImage | null> {
   const raw = await desktopCapturer.getSources({
@@ -149,19 +213,20 @@ export async function captureWindow(): Promise<NativeImage | null> {
 /** 캡쳐 결과 이미지를 설정에 따라 저장/복사 처리 */
 export async function handleCapturedImage(image: NativeImage, mode: CaptureMode): Promise<void> {
   const settings = getSettings()
+  const outputImage = applyCaptureQuality(image, settings.captureQuality)
   let savedPath: string | null = null
 
   if (settings.afterCapture === 'save' || settings.afterCapture === 'both') {
-    savedPath = await saveImage(image)
+    savedPath = await saveImage(outputImage)
   }
   if (settings.copyToClipboard) {
-    copyImageToClipboard(image)
+    copyImageToClipboard(outputImage)
   }
 
   const openEditor =
     settings.afterCapture === 'editor' || settings.afterCapture === 'both'
   notifyCaptureCompleted({
-    dataUrl: imageToDataUrl(image),
+    dataUrl: imageToDataUrl(outputImage),
     savedPath,
     mode,
     openEditor,
@@ -181,6 +246,12 @@ export async function handleCapturedImage(image: NativeImage, mode: CaptureMode)
 
 /** 캡쳐 모드별 진입점 */
 export async function startCapture(mode: CaptureMode): Promise<void> {
+  // 영역 캡처는 반복 촬영할 수 있는 유지형 프레임에서 실행한다.
+  if (mode === 'region') {
+    openRegionFrameWindow()
+    return
+  }
+
   // 단축키를 누른 바로 그 순간의 커서 모니터를 고정한다.
   const targetDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
   const main = getMainWindow()
@@ -192,9 +263,7 @@ export async function startCapture(mode: CaptureMode): Promise<void> {
     const image =
       mode === 'fullscreen'
         ? await captureFullScreen(targetDisplay)
-        : mode === 'region'
-          ? await captureRegion(targetDisplay)
-          : await captureWindow()
+        : await captureWindow()
     if (image) await handleCapturedImage(image, mode)
   } finally {
     if (main && !main.isDestroyed()) {

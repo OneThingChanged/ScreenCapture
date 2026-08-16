@@ -1,4 +1,4 @@
-import { app, nativeImage } from 'electron'
+import { app, nativeImage, net } from 'electron'
 import { writeFile } from 'node:fs/promises'
 import { createTray, recreateTray } from './tray'
 import { registerIpc, notifyFrameRecordState } from './ipc'
@@ -8,7 +8,8 @@ import { registerUpdaterIpc } from './updater'
 import {
   registerMediaIpc,
   registerMediaProtocol,
-  registerMediaScheme
+  registerMediaScheme,
+  readVideoInfo
 } from './media'
 import {
   registerShortcuts,
@@ -19,6 +20,8 @@ import { captureFullScreen, captureRegion, captureWindow } from './capture'
 import { imageToDataUrl, saveImage } from './storage'
 import {
   openEditorWindow,
+  openRegionFrameWindow,
+  getFrameWindow,
   openMainWindow,
   getMainWindow,
   notifyCaptureCompleted,
@@ -69,11 +72,102 @@ app.whenReady().then(async () => {
 
   const isSelftest =
     process.env.RECORD_SELFTEST ||
+    process.env.MEDIA_RANGE_SELFTEST ||
+    process.env.FRAME_CAPTURE_SELFTEST ||
     process.env.EDITOR_SELFTEST ||
     process.env.EDITOR_RENDER_SELFTEST ||
     process.env.CAPTURE_SELFTEST
   if (!isSelftest) {
     openMainWindow()
+  }
+
+  // 관리 탭 영상 탐색 자가 테스트: byte range 응답과 FPS 메타데이터 확인
+  if (process.env.MEDIA_RANGE_SELFTEST) {
+    try {
+      const target = process.env.MEDIA_RANGE_SELFTEST
+      const response = await net.fetch(
+        `sc-media://file/${encodeURIComponent(target)}`,
+        { headers: { Range: 'bytes=100-1099' } }
+      )
+      const bytes = Buffer.from(await response.arrayBuffer())
+      const contentRange = response.headers.get('content-range') ?? ''
+      const info = await readVideoInfo(target)
+      console.log(
+        `[media-range-selftest] status=${response.status} bytes=${bytes.length} ` +
+        `range=${contentRange} fps=${info.fps} duration=${info.duration}`
+      )
+      if (
+        response.status !== 206 ||
+        bytes.length !== 1000 ||
+        !contentRange.startsWith('bytes 100-1099/') ||
+        info.fps <= 0
+      ) {
+        process.exitCode = 1
+      }
+    } catch (error) {
+      console.error('[media-range-selftest] error:', error)
+      process.exitCode = 1
+    }
+    app.quit()
+    return
+  }
+
+  // 유지형 영역 캡처 프레임 자가 테스트: UI → 실제 캡처 → 프레임 생존 확인
+  if (process.env.FRAME_CAPTURE_SELFTEST) {
+    const frame = openRegionFrameWindow()
+    frame.webContents.once('did-finish-load', () => {
+      setTimeout(async () => {
+        try {
+          const uiOutput = process.env.FRAME_CAPTURE_SELFTEST_UI
+          if (uiOutput) {
+            const rendered = await frame.webContents.capturePage()
+            await writeFile(uiOutput, rendered.toPNG())
+          }
+          const mouseModes = await frame.webContents.executeJavaScript(`(() => {
+            const inside = document.getElementById('inner').getBoundingClientRect()
+            window.dispatchEvent(new MouseEvent('mousemove', {
+              clientX: inside.left + inside.width / 2,
+              clientY: inside.top + inside.height / 2
+            }))
+            const interior = document.body.dataset.mouseMode
+            const button = document.getElementById('captureBtn').getBoundingClientRect()
+            window.dispatchEvent(new MouseEvent('mousemove', {
+              clientX: button.left + button.width / 2,
+              clientY: button.top + button.height / 2
+            }))
+            return { interior, controls: document.body.dataset.mouseMode }
+          })()`)
+          await frame.webContents.executeJavaScript(
+            "document.getElementById('captureBtn')?.click()"
+          )
+          let status = ''
+          for (let attempt = 0; attempt < 30 && !status; attempt++) {
+            await new Promise((resolve) => setTimeout(resolve, 100))
+            status = await frame.webContents.executeJavaScript(
+              "document.body.dataset.lastCapture ?? ''"
+            )
+          }
+          const alive = getFrameWindow() === frame && !frame.isDestroyed()
+          console.log(
+            `[frame-selftest] capture=${status} frameAlive=${alive} ` +
+            `interior=${mouseModes.interior} controls=${mouseModes.controls}`
+          )
+          if (
+            status !== 'success' ||
+            !alive ||
+            mouseModes.interior !== 'passthrough' ||
+            mouseModes.controls !== 'interactive'
+          ) {
+            process.exitCode = 1
+          }
+        } catch (error) {
+          console.error('[frame-selftest] error:', error)
+          process.exitCode = 1
+        }
+        app.quit()
+      }, 500)
+    })
+    return
   }
 
   // 녹화 자가 테스트: 시작 → 2초 후 정지 → 저장/변환 확인

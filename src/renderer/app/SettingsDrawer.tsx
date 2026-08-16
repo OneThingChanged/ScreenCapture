@@ -86,9 +86,11 @@ export function SettingsDrawer({ onClose, onSaved }: { onClose: () => void; onSa
       <h3>저장</h3>
       <label>저장 폴더<div className="input-with-button"><input value={form.saveDir} onChange={(e) => patch('saveDir', e.target.value)} /><button onClick={() => void browse()} title="폴더 선택"><FolderOpen24Regular /></button></div></label>
       <label>이미지 형식<select value={form.imageFormat} onChange={(e) => patch('imageFormat', e.target.value as AppSettings['imageFormat'])}><option value="png">PNG</option><option value="jpg">JPG</option></select></label>
+      <label>캡처 화질<select value={form.captureQuality} onChange={(e) => patch('captureQuality', e.target.value as AppSettings['captureQuality'])}><option value="compact">용량 절약 · 해상도 50%</option><option value="balanced">균형 · 해상도 75%</option><option value="high">고화질 · 해상도 90%</option><option value="original">원본 · 해상도 100%</option></select></label>
       {form.imageFormat === 'jpg' && <label>JPG 품질<input type="range" min="1" max="100" value={form.jpgQuality} onChange={(e) => patch('jpgQuality', Number(e.target.value))} /><span className="range-value">{form.jpgQuality}%</span></label>}
       <label className="check-row"><input type="checkbox" checked={form.copyToClipboard} onChange={(e) => patch('copyToClipboard', e.target.checked)} />클립보드에 자동 복사</label>
       <h3>녹화</h3>
+      <label>녹화 화질<select value={form.recordQuality} onChange={(e) => patch('recordQuality', e.target.value as AppSettings['recordQuality'])}><option value="compact">용량 절약</option><option value="balanced">균형</option><option value="high">고화질</option><option value="maximum">최고화질</option></select></label>
       <label>기본 FPS<input type="number" min="5" max="60" value={form.recordFps} onChange={(e) => patch('recordFps', Math.max(5, Math.min(60, Number(e.target.value) || 30)))} /></label>
       <label className="check-row"><input type="checkbox" checked={form.exportMp4} onChange={(e) => patch('exportMp4', e.target.checked)} />MP4로 내보내기</label>
       <label className="check-row"><input type="checkbox" checked={form.exportGif} onChange={(e) => patch('exportGif', e.target.checked)} />GIF로 내보내기</label>
